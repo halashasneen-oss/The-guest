@@ -95,7 +95,7 @@ class GameActivity : ImmersiveActivity() {
     }
 
     @SuppressLint("GestureBackNavigation")
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         handleBackAction()
     }
