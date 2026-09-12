@@ -26,7 +26,7 @@ class CollisionSystemTest {
     @Test
     fun resolvesMovementBySlidingOnFreeAxis() {
         val current = NormalizedPoint(0.35f, 0.5f)
-        val desired = NormalizedPoint(0.45f, 0.35f)
-        assertEquals(NormalizedPoint(0.35f, 0.35f), system.resolve(current, desired, 0.02f))
+        val desired = NormalizedPoint(0.45f, 0.39f)
+        assertEquals(NormalizedPoint(0.35f, 0.39f), system.resolve(current, desired, 0.02f))
     }
 }
