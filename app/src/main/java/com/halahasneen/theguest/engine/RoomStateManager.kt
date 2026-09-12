@@ -10,30 +10,19 @@ data class RoomRuntimeState(
 class RoomStateManager {
     private val states = mutableMapOf<RoomId, RoomRuntimeState>()
 
-    fun state(roomId: RoomId): RoomRuntimeState =
-        states.getOrPut(roomId) { RoomRuntimeState() }
-
-    fun markPhysical(roomId: RoomId, flag: String) {
-        state(roomId).physicalFlags.add(flag)
-    }
-
-    fun hasPhysical(roomId: RoomId, flag: String): Boolean =
-        flag in state(roomId).physicalFlags
-
-    fun markPerceived(roomId: RoomId, flag: String) {
-        state(roomId).perceivedFlags.add(flag)
-    }
-
-    fun hasPerceived(roomId: RoomId, flag: String): Boolean =
-        flag in state(roomId).perceivedFlags
-
-    fun clearPerceived(roomId: RoomId) {
-        state(roomId).perceivedFlags.clear()
-    }
+    fun state(roomId: RoomId): RoomRuntimeState = states.getOrPut(roomId) { RoomRuntimeState() }
+    fun markPhysical(roomId: RoomId, flag: String) { state(roomId).physicalFlags.add(flag) }
+    fun hasPhysical(roomId: RoomId, flag: String): Boolean = flag in state(roomId).physicalFlags
+    fun markPerceived(roomId: RoomId, flag: String) { state(roomId).perceivedFlags.add(flag) }
+    fun hasPerceived(roomId: RoomId, flag: String): Boolean = flag in state(roomId).perceivedFlags
+    fun clearPerceived(roomId: RoomId) { state(roomId).perceivedFlags.clear() }
 
     object Flags {
         const val LIVING_PICTURE_TILTED = "living_picture_tilted"
         const val LIVING_EXTRA_PERSON = "living_extra_person"
         const val LIVING_MEMORY_TAKEN = "living_memory_taken"
+        const val KITCHEN_OBJECT_FALLEN = "kitchen_object_fallen"
+        const val KITCHEN_ITEM_MOVED = "kitchen_item_moved"
+        const val KITCHEN_MEMORY_TAKEN = "kitchen_memory_taken"
     }
 }

@@ -7,41 +7,11 @@ import com.halahasneen.theguest.data.model.RoomId
 
 object HorrorEventCatalog {
     val events = listOf(
-        HorrorEvent(
-            id = "living_picture_tilt",
-            roomId = RoomId.LIVING_ROOM,
-            minVisitCount = 1,
-            minMemories = 0,
-            minTension = 7f,
-            weight = 5f,
-            cooldownSeconds = 999f,
-            oneShot = true,
-            category = HorrorEventCategory.SUBTLE,
-            action = HorrorAction.LIVING_PICTURE_TILT
-        ),
-        HorrorEvent(
-            id = "living_single_knock",
-            roomId = RoomId.LIVING_ROOM,
-            minVisitCount = 1,
-            minMemories = 0,
-            minTension = 12f,
-            weight = 3f,
-            cooldownSeconds = 25f,
-            oneShot = false,
-            category = HorrorEventCategory.AUDIO,
-            action = HorrorAction.LIVING_SINGLE_KNOCK
-        ),
-        HorrorEvent(
-            id = "living_light_dim",
-            roomId = RoomId.LIVING_ROOM,
-            minVisitCount = 1,
-            minMemories = 0,
-            minTension = 20f,
-            weight = 2f,
-            cooldownSeconds = 999f,
-            oneShot = true,
-            category = HorrorEventCategory.VISUAL,
-            action = HorrorAction.LIVING_LIGHT_DIM
-        )
+        HorrorEvent("living_picture_tilt", RoomId.LIVING_ROOM, 1, 0, 7f, 5f, 999f, true, HorrorEventCategory.SUBTLE, HorrorAction.LIVING_PICTURE_TILT),
+        HorrorEvent("living_single_knock", RoomId.LIVING_ROOM, 1, 0, 12f, 3f, 25f, false, HorrorEventCategory.AUDIO, HorrorAction.LIVING_SINGLE_KNOCK),
+        HorrorEvent("living_light_dim", RoomId.LIVING_ROOM, 1, 0, 20f, 2f, 999f, true, HorrorEventCategory.VISUAL, HorrorAction.LIVING_LIGHT_DIM),
+        HorrorEvent("kitchen_footsteps", RoomId.KITCHEN, 1, 1, 13f, 4f, 24f, false, HorrorEventCategory.AUDIO, HorrorAction.KITCHEN_FOOTSTEPS),
+        HorrorEvent("kitchen_object_drop", RoomId.KITCHEN, 1, 2, 21f, 3f, 999f, true, HorrorEventCategory.AUDIO, HorrorAction.KITCHEN_OBJECT_DROP),
+        HorrorEvent("kitchen_item_move", RoomId.KITCHEN, 1, 2, 27f, 2f, 999f, true, HorrorEventCategory.SUBTLE, HorrorAction.KITCHEN_ITEM_MOVE)
     )
 }

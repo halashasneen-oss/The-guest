@@ -10,7 +10,10 @@ enum class HorrorEventCategory {
 enum class HorrorAction {
     LIVING_PICTURE_TILT,
     LIVING_SINGLE_KNOCK,
-    LIVING_LIGHT_DIM
+    LIVING_LIGHT_DIM,
+    KITCHEN_FOOTSTEPS,
+    KITCHEN_OBJECT_DROP,
+    KITCHEN_ITEM_MOVE
 }
 
 data class HorrorEvent(

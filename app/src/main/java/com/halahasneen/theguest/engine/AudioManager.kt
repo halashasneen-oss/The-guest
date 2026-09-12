@@ -10,7 +10,7 @@ import com.halahasneen.theguest.data.model.NormalizedPoint
 class AudioManager(context: Context) {
     private val appContext = context.applicationContext
     private val soundPool = SoundPool.Builder()
-        .setMaxStreams(4)
+        .setMaxStreams(5)
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_GAME)
@@ -20,7 +20,9 @@ class AudioManager(context: Context) {
         .build()
 
     private val loadedSoundIds = mutableSetOf<Int>()
-    private var knockSoundId: Int = 0
+    private var knockSoundId = 0
+    private var footstepsSoundId = 0
+    private var dropSoundId = 0
     private var masterVolume = 1f
     private var effectsVolume = 0.75f
     private var ambientVolume = 0.22f
@@ -35,22 +37,14 @@ class AudioManager(context: Context) {
             if (status == 0) loadedSoundIds.add(sampleId)
         }
         knockSoundId = soundPool.load(appContext, R.raw.soft_knock, 1)
+        footstepsSoundId = soundPool.load(appContext, R.raw.kitchen_footsteps, 1)
+        dropSoundId = soundPool.load(appContext, R.raw.kitchen_drop, 1)
         updateAmbientVolume()
     }
 
-    fun setMasterVolume(value: Float) {
-        masterVolume = value.coerceIn(0f, 1f)
-        updateAmbientVolume()
-    }
-
-    fun setEffectsVolume(value: Float) {
-        effectsVolume = value.coerceIn(0f, 1f)
-    }
-
-    fun setAmbientVolume(value: Float) {
-        ambientVolume = value.coerceIn(0f, 1f)
-        updateAmbientVolume()
-    }
+    fun setMasterVolume(value: Float) { masterVolume = value.coerceIn(0f, 1f); updateAmbientVolume() }
+    fun setEffectsVolume(value: Float) { effectsVolume = value.coerceIn(0f, 1f) }
+    fun setAmbientVolume(value: Float) { ambientVolume = value.coerceIn(0f, 1f); updateAmbientVolume() }
 
     fun setTensionStage(stage: TensionStage) {
         if (tensionStage == stage) return
@@ -65,28 +59,27 @@ class AudioManager(context: Context) {
         }
     }
 
-    fun pauseAmbient() {
-        ambientPlayer?.let { player ->
-            if (player.isPlaying) player.pause()
-        }
-    }
+    fun pauseAmbient() { ambientPlayer?.let { if (it.isPlaying) it.pause() } }
 
-    fun playKnock(source: NormalizedPoint, listener: NormalizedPoint) {
-        if (knockSoundId == 0 || knockSoundId !in loadedSoundIds) return
+    fun playKnock(source: NormalizedPoint, listener: NormalizedPoint) = playSpatial(knockSoundId, source, listener, 0.85f, 1f)
+    fun playFootsteps(source: NormalizedPoint, listener: NormalizedPoint) = playSpatial(footstepsSoundId, source, listener, 0.95f, 0.9f)
+    fun playDrop(source: NormalizedPoint, listener: NormalizedPoint) = playSpatial(dropSoundId, source, listener, 0.90f, 1f)
+
+    private fun playSpatial(soundId: Int, source: NormalizedPoint, listener: NormalizedPoint, maxDistance: Float, gain: Float) {
+        if (soundId == 0 || soundId !in loadedSoundIds) return
         val stageBoost = when (tensionStage) {
             TensionStage.CALM -> 0.85f
             TensionStage.UNEASY -> 0.95f
-            TensionStage.DISTURBED -> 1f
-            TensionStage.TERRIFIED -> 1f
+            TensionStage.DISTURBED, TensionStage.TERRIFIED -> 1f
         }
         val volumes = AudioMath.spatialVolumes(
             source = source,
             listener = listener,
-            baseVolume = masterVolume * effectsVolume * stageBoost,
-            maxDistance = 0.85f
+            baseVolume = masterVolume * effectsVolume * stageBoost * gain,
+            maxDistance = maxDistance
         )
         if (volumes.left <= 0f && volumes.right <= 0f) return
-        soundPool.play(knockSoundId, volumes.left, volumes.right, 1, 0, 1f)
+        soundPool.play(soundId, volumes.left, volumes.right, 1, 0, 1f)
     }
 
     fun release() {

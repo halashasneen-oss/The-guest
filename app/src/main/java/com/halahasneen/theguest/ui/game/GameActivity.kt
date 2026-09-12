@@ -24,6 +24,8 @@ class GameActivity : Activity() {
         findViewById<JoystickView>(R.id.joystick).onDirectionChanged = gameCanvas::setInputDirection
         findViewById<InteractionButtonView>(R.id.interactionButton).onInteraction = gameCanvas::interact
         gameCanvas.onSpatialEffectRequested = audioManager::playKnock
+        gameCanvas.onFootstepsRequested = audioManager::playFootsteps
+        gameCanvas.onDropRequested = audioManager::playDrop
         gameCanvas.onTensionStageChanged = audioManager::setTensionStage
         enterImmersiveMode()
     }
@@ -36,32 +38,13 @@ class GameActivity : Activity() {
                 controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
-            window.decorView.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         }
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) enterImmersiveMode()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        gameCanvas.resumeGame()
-        audioManager.resumeAmbient()
-    }
-
-    override fun onPause() {
-        gameCanvas.pauseGame()
-        audioManager.pauseAmbient()
-        super.onPause()
-    }
-
-    override fun onDestroy() {
-        audioManager.release()
-        super.onDestroy()
-    }
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) enterImmersiveMode() }
+    override fun onResume() { super.onResume(); gameCanvas.resumeGame(); audioManager.resumeAmbient() }
+    override fun onPause() { gameCanvas.pauseGame(); audioManager.pauseAmbient(); super.onPause() }
+    override fun onDestroy() { audioManager.release(); super.onDestroy() }
 }

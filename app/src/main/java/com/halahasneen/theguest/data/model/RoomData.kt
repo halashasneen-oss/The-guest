@@ -2,7 +2,8 @@ package com.halahasneen.theguest.data.model
 
 enum class RoomId {
     ENTRANCE,
-    LIVING_ROOM
+    LIVING_ROOM,
+    KITCHEN
 }
 
 enum class HotspotType {
