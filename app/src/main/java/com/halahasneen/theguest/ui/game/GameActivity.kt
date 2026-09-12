@@ -1,5 +1,6 @@
 package com.halahasneen.theguest.ui.game
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -93,6 +94,7 @@ class GameActivity : ImmersiveActivity() {
         super.onPause()
     }
 
+    @SuppressLint("GestureBackNavigation")
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         handleBackAction()
