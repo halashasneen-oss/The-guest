@@ -7,6 +7,10 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import com.halahasneen.theguest.data.event.HorrorEventCatalog
+import com.halahasneen.theguest.data.model.HorrorAction
+import com.halahasneen.theguest.data.model.HorrorContext
+import com.halahasneen.theguest.data.model.HorrorEvent
 import com.halahasneen.theguest.data.model.HotspotType
 import com.halahasneen.theguest.data.model.NormalizedPoint
 import com.halahasneen.theguest.data.model.NormalizedRect
@@ -16,6 +20,7 @@ import com.halahasneen.theguest.data.model.RoomId
 import com.halahasneen.theguest.data.room.RoomCatalog
 import com.halahasneen.theguest.engine.CollisionSystem
 import com.halahasneen.theguest.engine.GameLoop
+import com.halahasneen.theguest.engine.HorrorDirector
 import com.halahasneen.theguest.engine.InteractionSystem
 import com.halahasneen.theguest.engine.LightingSystem
 import com.halahasneen.theguest.engine.TensionStage
@@ -39,10 +44,14 @@ class GameCanvasView @JvmOverloads constructor(
     private val interactionSystem = InteractionSystem()
     private val lightingSystem = LightingSystem()
     private val tensionSystem = TensionSystem()
+    private val horrorDirector = HorrorDirector()
     private var lastTensionStage = tensionSystem.stage
 
+    private val roomVisitCounts = mutableMapOf(RoomId.ENTRANCE to 1)
     private val collectedMemories = mutableSetOf<String>()
     private val hiddenHotspots = mutableSetOf<String>()
+    private var livingPictureTilted = false
+    private var temporaryBlackoutSeconds = 0f
     private var prompt: String? = null
     private var message: String? = "عدت إلى البيت بعد غياب طويل."
     private var messageSeconds = 4f
@@ -111,6 +120,7 @@ class GameCanvasView @JvmOverloads constructor(
                 changeRoom(target)
             }
         }
+        notifyTensionStageIfNeeded()
     }
 
     fun resumeGame() = gameLoop.start()
@@ -130,15 +140,52 @@ class GameCanvasView @JvmOverloads constructor(
             inDarkness = !inSafeLight,
             inSafeLight = inSafeLight
         )
-        val currentStage = tensionSystem.stage
-        if (currentStage != lastTensionStage) {
-            lastTensionStage = currentStage
-            onTensionStageChanged?.invoke(currentStage)
-        }
+        notifyTensionStageIfNeeded()
+
+        temporaryBlackoutSeconds = (temporaryBlackoutSeconds - deltaSeconds).coerceAtLeast(0f)
+        val horrorEvent = horrorDirector.update(
+            deltaSeconds = deltaSeconds,
+            context = HorrorContext(
+                roomId = room.id,
+                visitCount = roomVisitCounts[room.id] ?: 1,
+                memoriesCollected = collectedMemories.size,
+                tensionLevel = tensionSystem.level
+            ),
+            events = HorrorEventCatalog.events,
+            intensityMultiplier = tensionSystem.eventIntensityMultiplier
+        )
+        horrorEvent?.let(::triggerHorrorEvent)
 
         if (messageSeconds > 0f) {
             messageSeconds = (messageSeconds - deltaSeconds).coerceAtLeast(0f)
             if (messageSeconds == 0f) message = null
+        }
+    }
+
+    private fun triggerHorrorEvent(event: HorrorEvent) {
+        when (event.action) {
+            HorrorAction.LIVING_PICTURE_TILT -> {
+                livingPictureTilted = true
+                tensionSystem.addStimulus(2.5f)
+                showMessage("...هل كانت الصورة مائلة قبل قليل؟", 2.8f)
+            }
+            HorrorAction.LIVING_SINGLE_KNOCK -> {
+                onSpatialEffectRequested?.invoke(NormalizedPoint(0.84f, 0.28f), player.position)
+                tensionSystem.addStimulus(1.5f)
+            }
+            HorrorAction.LIVING_LIGHT_DIM -> {
+                temporaryBlackoutSeconds = 2.8f
+                tensionSystem.addStimulus(2f)
+            }
+        }
+        notifyTensionStageIfNeeded()
+    }
+
+    private fun notifyTensionStageIfNeeded() {
+        val currentStage = tensionSystem.stage
+        if (currentStage != lastTensionStage) {
+            lastTensionStage = currentStage
+            onTensionStageChanged?.invoke(currentStage)
         }
     }
 
@@ -152,6 +199,7 @@ class GameCanvasView @JvmOverloads constructor(
     private fun changeRoom(target: RoomId) {
         room = RoomCatalog.room(target)
         collisionSystem = CollisionSystem(room.walkableBounds, room.collisionRects)
+        roomVisitCounts[target] = (roomVisitCounts[target] ?: 0) + 1
         player.position = when (target) {
             RoomId.ENTRANCE -> NormalizedPoint(0.80f, 0.50f)
             RoomId.LIVING_ROOM -> NormalizedPoint(0.18f, 0.50f)
@@ -185,7 +233,8 @@ class GameCanvasView @JvmOverloads constructor(
             height = height,
             normalizedX = player.position.x,
             normalizedY = player.position.y,
-            tensionLevel = tensionSystem.level
+            tensionLevel = tensionSystem.level,
+            extraDarkness = (temporaryBlackoutSeconds / 2.8f).coerceIn(0f, 1f)
         )
         drawHud(canvas)
     }
@@ -232,8 +281,14 @@ class GameCanvasView @JvmOverloads constructor(
         drawNormalizedRect(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furniturePaint, 18f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furnitureEdgePaint, 18f)
         drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.38f, 0.15f, 0.63f), wallPaint, 6f)
+
+        val pictureCenterX = 0.75f * width
+        val pictureCenterY = 0.27f * height
+        canvas.save()
+        if (livingPictureTilted) canvas.rotate(-7f, pictureCenterX, pictureCenterY)
         drawNormalizedRect(canvas, NormalizedRect(0.70f, 0.20f, 0.80f, 0.34f), coldPaint, 4f)
         drawNormalizedRect(canvas, NormalizedRect(0.715f, 0.22f, 0.785f, 0.32f), wallPaint, 2f)
+        canvas.restore()
     }
 
     private fun drawHud(canvas: Canvas) {

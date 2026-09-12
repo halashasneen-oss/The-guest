@@ -21,13 +21,15 @@ class LightingSystem {
         height: Int,
         normalizedX: Float,
         normalizedY: Float,
-        tensionLevel: Float
+        tensionLevel: Float,
+        extraDarkness: Float = 0f
     ) {
         if (width <= 0 || height <= 0) return
         val normalizedTension = (tensionLevel / 100f).coerceIn(0f, 1f)
-        darknessPaint.alpha = (92 + normalizedTension * 52f).toInt().coerceIn(0, 255)
-        outerGlowPaint.alpha = (18 - normalizedTension * 6f).toInt().coerceIn(8, 24)
-        innerGlowPaint.alpha = (28 - normalizedTension * 8f).toInt().coerceIn(12, 32)
+        val blackout = extraDarkness.coerceIn(0f, 1f)
+        darknessPaint.alpha = (92 + normalizedTension * 52f + blackout * 72f).toInt().coerceIn(0, 230)
+        outerGlowPaint.alpha = (18 - normalizedTension * 6f - blackout * 6f).toInt().coerceIn(5, 24)
+        innerGlowPaint.alpha = (28 - normalizedTension * 8f - blackout * 8f).toInt().coerceIn(8, 32)
 
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), darknessPaint)
 
