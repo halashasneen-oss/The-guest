@@ -24,6 +24,7 @@ class GameActivity : Activity() {
         findViewById<JoystickView>(R.id.joystick).onDirectionChanged = gameCanvas::setInputDirection
         findViewById<InteractionButtonView>(R.id.interactionButton).onInteraction = gameCanvas::interact
         gameCanvas.onSpatialEffectRequested = audioManager::playKnock
+        gameCanvas.onTensionStageChanged = audioManager::setTensionStage
         enterImmersiveMode()
     }
 

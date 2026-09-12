@@ -18,6 +18,8 @@ import com.halahasneen.theguest.engine.CollisionSystem
 import com.halahasneen.theguest.engine.GameLoop
 import com.halahasneen.theguest.engine.InteractionSystem
 import com.halahasneen.theguest.engine.LightingSystem
+import com.halahasneen.theguest.engine.TensionStage
+import com.halahasneen.theguest.engine.TensionSystem
 import kotlin.math.hypot
 
 class GameCanvasView @JvmOverloads constructor(
@@ -26,6 +28,7 @@ class GameCanvasView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     var onSpatialEffectRequested: ((source: NormalizedPoint, listener: NormalizedPoint) -> Unit)? = null
+    var onTensionStageChanged: ((TensionStage) -> Unit)? = null
 
     private val player = PlayerState(position = NormalizedPoint(0.18f, 0.50f))
     private var inputX = 0f
@@ -35,6 +38,8 @@ class GameCanvasView @JvmOverloads constructor(
     private var collisionSystem = CollisionSystem(room.walkableBounds, room.collisionRects)
     private val interactionSystem = InteractionSystem()
     private val lightingSystem = LightingSystem()
+    private val tensionSystem = TensionSystem()
+    private var lastTensionStage = tensionSystem.stage
 
     private val collectedMemories = mutableSetOf<String>()
     private val hiddenHotspots = mutableSetOf<String>()
@@ -90,14 +95,19 @@ class GameCanvasView @JvmOverloads constructor(
         }
 
         when (hotspot.type) {
-            HotspotType.INSPECT -> showMessage(hotspot.message, 3.6f)
+            HotspotType.INSPECT -> {
+                tensionSystem.addStimulus(0.8f)
+                showMessage(hotspot.message, 3.6f)
+            }
             HotspotType.COLLECT -> {
                 hotspot.memoryItemId?.let(collectedMemories::add)
                 hiddenHotspots.add(hotspot.id)
+                tensionSystem.addStimulus(4f)
                 showMessage(hotspot.message, 4f)
             }
             HotspotType.DOOR -> hotspot.targetRoom?.let { target ->
                 onSpatialEffectRequested?.invoke(hotspot.position, player.position)
+                if (target == RoomId.LIVING_ROOM) tensionSystem.addStimulus(3f)
                 changeRoom(target)
             }
         }
@@ -114,10 +124,29 @@ class GameCanvasView @JvmOverloads constructor(
         player.position = collisionSystem.resolve(player.position, desired, player.radius)
         prompt = interactionSystem.nearest(player.position, room.hotspots, hiddenHotspots)?.label
 
+        val inSafeLight = isNearSafeLight()
+        tensionSystem.update(
+            deltaSeconds = deltaSeconds,
+            inDarkness = !inSafeLight,
+            inSafeLight = inSafeLight
+        )
+        val currentStage = tensionSystem.stage
+        if (currentStage != lastTensionStage) {
+            lastTensionStage = currentStage
+            onTensionStageChanged?.invoke(currentStage)
+        }
+
         if (messageSeconds > 0f) {
             messageSeconds = (messageSeconds - deltaSeconds).coerceAtLeast(0f)
             if (messageSeconds == 0f) message = null
         }
+    }
+
+    private fun isNearSafeLight(): Boolean {
+        if (room.id != RoomId.ENTRANCE) return false
+        val dx = player.position.x - 0.25f
+        val dy = player.position.y - 0.55f
+        return dx * dx + dy * dy <= 0.16f * 0.16f
     }
 
     private fun changeRoom(target: RoomId) {
@@ -150,7 +179,14 @@ class GameCanvasView @JvmOverloads constructor(
         }
 
         drawPlayer(canvas)
-        lightingSystem.draw(canvas, width, height, player.position.x, player.position.y)
+        lightingSystem.draw(
+            canvas = canvas,
+            width = width,
+            height = height,
+            normalizedX = player.position.x,
+            normalizedY = player.position.y,
+            tensionLevel = tensionSystem.level
+        )
         drawHud(canvas)
     }
 
