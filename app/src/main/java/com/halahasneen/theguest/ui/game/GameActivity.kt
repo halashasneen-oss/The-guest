@@ -1,10 +1,12 @@
 package com.halahasneen.theguest.ui.game
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.Button
+import android.window.OnBackInvokedDispatcher
 import com.halahasneen.theguest.R
 import com.halahasneen.theguest.data.repository.GameRepository
 import com.halahasneen.theguest.data.repository.GameSettingsRepository
@@ -67,6 +69,7 @@ class GameActivity : ImmersiveActivity() {
         }
         applySettings()
         initialized = true
+        registerBackHandler()
     }
 
     override fun onResume() {
@@ -83,26 +86,42 @@ class GameActivity : ImmersiveActivity() {
     override fun onPause() {
         if (initialized) {
             saveNow()
+            gameCanvas.setInputDirection(0f, 0f)
             gameCanvas.pauseGame()
             audioManager.pauseAmbient()
         }
         super.onPause()
     }
 
-    @Deprecated("Framework back callback retained for Android 8+ compatibility")
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (pausedByMenu) resumeFromPause() else showPauseMenu()
+        handleBackAction()
     }
 
     override fun onDestroy() {
-        audioManager.release()
+        if (::audioManager.isInitialized) audioManager.release()
         super.onDestroy()
+    }
+
+    private fun registerBackHandler() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT
+            ) {
+                handleBackAction()
+            }
+        }
+    }
+
+    private fun handleBackAction() {
+        if (pausedByMenu) resumeFromPause() else showPauseMenu()
     }
 
     private fun showPauseMenu() {
         if (pausedByMenu) return
         pausedByMenu = true
         saveNow()
+        gameCanvas.setInputDirection(0f, 0f)
         gameCanvas.pauseGame()
         audioManager.pauseAmbient()
         pauseOverlay.visibility = View.VISIBLE
@@ -113,6 +132,7 @@ class GameActivity : ImmersiveActivity() {
         pausedByMenu = false
         pauseOverlay.visibility = View.GONE
         applySettings()
+        gameCanvas.setInputDirection(0f, 0f)
         gameCanvas.resumeGame()
         audioManager.resumeAmbient()
         enterImmersiveMode()
