@@ -15,6 +15,11 @@ Offline psychological horror game for Android.
 - **Audio:** later milestones will separate long ambience playback from short effects and spatial panning.
 - **Lifecycle:** game loop and future audio/timers must stop on pause and resume exactly once.
 
+## Milestone status
+
+- Milestone 0: architecture audit complete. The repository was empty, so the project starts from a clean baseline.
+- Milestone 1: core engine implemented; CI is the acceptance gate before Milestone 2.
+
 ## Milestone policy
 
 Each milestone must compile and test successfully before the next milestone is started. No completed milestone may contain fake implementations or unfinished controls.
