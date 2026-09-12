@@ -11,6 +11,7 @@ import com.halahasneen.theguest.data.event.HorrorEventCatalog
 import com.halahasneen.theguest.data.model.HorrorAction
 import com.halahasneen.theguest.data.model.HorrorContext
 import com.halahasneen.theguest.data.model.HorrorEvent
+import com.halahasneen.theguest.data.model.Hotspot
 import com.halahasneen.theguest.data.model.HotspotType
 import com.halahasneen.theguest.data.model.NormalizedPoint
 import com.halahasneen.theguest.data.model.NormalizedRect
@@ -23,6 +24,7 @@ import com.halahasneen.theguest.engine.GameLoop
 import com.halahasneen.theguest.engine.HorrorDirector
 import com.halahasneen.theguest.engine.InteractionSystem
 import com.halahasneen.theguest.engine.LightingSystem
+import com.halahasneen.theguest.engine.RoomStateManager
 import com.halahasneen.theguest.engine.TensionStage
 import com.halahasneen.theguest.engine.TensionSystem
 import kotlin.math.hypot
@@ -45,12 +47,12 @@ class GameCanvasView @JvmOverloads constructor(
     private val lightingSystem = LightingSystem()
     private val tensionSystem = TensionSystem()
     private val horrorDirector = HorrorDirector()
+    private val roomStateManager = RoomStateManager()
     private var lastTensionStage = tensionSystem.stage
 
     private val roomVisitCounts = mutableMapOf(RoomId.ENTRANCE to 1)
     private val collectedMemories = mutableSetOf<String>()
     private val hiddenHotspots = mutableSetOf<String>()
-    private var livingPictureTilted = false
     private var temporaryBlackoutSeconds = 0f
     private var prompt: String? = null
     private var message: String? = "عدت إلى البيت بعد غياب طويل."
@@ -60,6 +62,7 @@ class GameCanvasView @JvmOverloads constructor(
     private val floorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 22, 38) }
     private val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(20, 17, 29) }
     private val furniturePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(45, 40, 57) }
+    private val furnitureDarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(31, 27, 42) }
     private val furnitureEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 3f
@@ -67,6 +70,7 @@ class GameCanvasView @JvmOverloads constructor(
     }
     private val warmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 176, 75) }
     private val coldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(59, 75, 107) }
+    private val dangerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(139, 30, 63) }
     private val playerBodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(234, 234, 234) }
     private val playerHeadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 176, 75) }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -104,16 +108,8 @@ class GameCanvasView @JvmOverloads constructor(
         }
 
         when (hotspot.type) {
-            HotspotType.INSPECT -> {
-                tensionSystem.addStimulus(0.8f)
-                showMessage(hotspot.message, 3.6f)
-            }
-            HotspotType.COLLECT -> {
-                hotspot.memoryItemId?.let(collectedMemories::add)
-                hiddenHotspots.add(hotspot.id)
-                tensionSystem.addStimulus(4f)
-                showMessage(hotspot.message, 4f)
-            }
+            HotspotType.INSPECT -> inspect(hotspot)
+            HotspotType.COLLECT -> collect(hotspot)
             HotspotType.DOOR -> hotspot.targetRoom?.let { target ->
                 onSpatialEffectRequested?.invoke(hotspot.position, player.position)
                 if (target == RoomId.LIVING_ROOM) tensionSystem.addStimulus(3f)
@@ -125,6 +121,62 @@ class GameCanvasView @JvmOverloads constructor(
 
     fun resumeGame() = gameLoop.start()
     fun pauseGame() = gameLoop.stop()
+
+    private fun inspect(hotspot: Hotspot) {
+        if (hotspot.id == "living_family_picture") {
+            inspectFamilyPicture()
+            return
+        }
+        tensionSystem.addStimulus(0.8f)
+        showMessage(hotspot.message, 3.6f)
+    }
+
+    private fun inspectFamilyPicture() {
+        val tilted = roomStateManager.hasPhysical(
+            RoomId.LIVING_ROOM,
+            RoomStateManager.Flags.LIVING_PICTURE_TILTED
+        )
+        val extraPerson = roomStateManager.hasPhysical(
+            RoomId.LIVING_ROOM,
+            RoomStateManager.Flags.LIVING_EXTRA_PERSON
+        )
+
+        when {
+            extraPerson -> {
+                tensionSystem.addStimulus(1.5f)
+                showMessage("خمسة أشخاص. لا أستطيع تذكّر وجه الخامس.", 4f)
+            }
+            tilted -> {
+                roomStateManager.markPhysical(
+                    RoomId.LIVING_ROOM,
+                    RoomStateManager.Flags.LIVING_EXTRA_PERSON
+                )
+                tensionSystem.addStimulus(6f)
+                temporaryBlackoutSeconds = 0.7f
+                showMessage("كانوا أربعة... من هذا الخامس؟", 4.5f)
+            }
+            else -> {
+                tensionSystem.addStimulus(1f)
+                showMessage("أربعة وجوه مألوفة. هكذا أتذكرها دائمًا.", 3.6f)
+            }
+        }
+    }
+
+    private fun collect(hotspot: Hotspot) {
+        hotspot.memoryItemId?.let(collectedMemories::add)
+        hiddenHotspots.add(hotspot.id)
+        if (hotspot.id == "living_birthday_card") {
+            roomStateManager.markPhysical(
+                RoomId.LIVING_ROOM,
+                RoomStateManager.Flags.LIVING_MEMORY_TAKEN
+            )
+            tensionSystem.addStimulus(5f)
+            showMessage("ذكرى 2/5 — بطاقة عيد قديمة... توقيع خامس مطموس.", 4.5f)
+        } else {
+            tensionSystem.addStimulus(4f)
+            showMessage(hotspot.message, 4f)
+        }
+    }
 
     private fun updateGame(deltaSeconds: Float) {
         val desired = NormalizedPoint(
@@ -165,7 +217,10 @@ class GameCanvasView @JvmOverloads constructor(
     private fun triggerHorrorEvent(event: HorrorEvent) {
         when (event.action) {
             HorrorAction.LIVING_PICTURE_TILT -> {
-                livingPictureTilted = true
+                roomStateManager.markPhysical(
+                    RoomId.LIVING_ROOM,
+                    RoomStateManager.Flags.LIVING_PICTURE_TILTED
+                )
                 tensionSystem.addStimulus(2.5f)
                 showMessage("...هل كانت الصورة مائلة قبل قليل؟", 2.8f)
             }
@@ -223,7 +278,7 @@ class GameCanvasView @JvmOverloads constructor(
 
         when (room.id) {
             RoomId.ENTRANCE -> drawEntrance(canvas)
-            RoomId.LIVING_ROOM -> drawLivingRoomShell(canvas)
+            RoomId.LIVING_ROOM -> drawLivingRoom(canvas)
         }
 
         drawPlayer(canvas)
@@ -253,18 +308,20 @@ class GameCanvasView @JvmOverloads constructor(
 
         drawNormalizedRect(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furniturePaint, 10f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furnitureEdgePaint, 10f)
-
         drawNormalizedRect(canvas, NormalizedRect(0.84f, 0.38f, 0.92f, 0.63f), wallPaint, 6f)
+
         warmPaint.alpha = 115
         canvas.drawCircle(0.855f * width, 0.505f * height, minOf(width, height) * 0.009f, warmPaint)
         warmPaint.alpha = 255
 
-        if ("entrance_key" !in hiddenHotspots) {
-            val x = 0.25f * width
-            val y = 0.55f * height
-            canvas.drawCircle(x, y, minOf(width, height) * 0.012f, warmPaint)
-            canvas.drawRect(x, y - 2f, x + minOf(width, height) * 0.045f, y + 2f, warmPaint)
-        }
+        if ("entrance_key" !in hiddenHotspots) drawEntranceKey(canvas)
+    }
+
+    private fun drawEntranceKey(canvas: Canvas) {
+        val x = 0.25f * width
+        val y = 0.55f * height
+        canvas.drawCircle(x, y, minOf(width, height) * 0.012f, warmPaint)
+        canvas.drawRect(x, y - 2f, x + minOf(width, height) * 0.045f, y + 2f, warmPaint)
     }
 
     private fun drawClock(canvas: Canvas) {
@@ -277,17 +334,61 @@ class GameCanvasView @JvmOverloads constructor(
         canvas.drawLine(x, y, x + radius * 0.38f, y + radius * 0.15f, warmPaint)
     }
 
-    private fun drawLivingRoomShell(canvas: Canvas) {
-        drawNormalizedRect(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furniturePaint, 18f)
-        drawNormalizedRectOutline(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furnitureEdgePaint, 18f)
-        drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.38f, 0.15f, 0.63f), wallPaint, 6f)
+    private fun drawLivingRoom(canvas: Canvas) {
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
 
-        val pictureCenterX = 0.75f * width
-        val pictureCenterY = 0.27f * height
+        coldPaint.alpha = 55
+        drawNormalizedRect(canvas, NormalizedRect(0.29f, 0.27f, 0.70f, 0.72f), coldPaint, 28f)
+        coldPaint.alpha = 255
+
+        // Central sofa and side furniture.
+        drawNormalizedRect(canvas, NormalizedRect(0.37f, 0.36f, 0.63f, 0.61f), furniturePaint, 18f)
+        drawNormalizedRectOutline(canvas, NormalizedRect(0.37f, 0.36f, 0.63f, 0.61f), furnitureEdgePaint, 18f)
+        drawNormalizedRect(canvas, NormalizedRect(0.72f, 0.58f, 0.86f, 0.70f), furnitureDarkPaint, 10f)
+        drawNormalizedRect(canvas, NormalizedRect(0.16f, 0.17f, 0.29f, 0.29f), furnitureDarkPaint, 10f)
+
+        // Entrance door.
+        drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.38f, 0.15f, 0.63f), wallPaint, 6f)
+        drawFamilyPicture(canvas)
+
+        if ("living_birthday_card" !in hiddenHotspots) {
+            val x = 0.79f * width
+            val y = 0.55f * height
+            rect.set(x - 18f, y - 11f, x + 18f, y + 11f)
+            canvas.drawRoundRect(rect, 4f, 4f, warmPaint)
+            canvas.drawLine(x - 13f, y, x + 11f, y, furnitureDarkPaint)
+        }
+    }
+
+    private fun drawFamilyPicture(canvas: Canvas) {
+        val centerX = 0.75f * width
+        val centerY = 0.27f * height
+        val tilted = roomStateManager.hasPhysical(
+            RoomId.LIVING_ROOM,
+            RoomStateManager.Flags.LIVING_PICTURE_TILTED
+        )
+        val extraPerson = roomStateManager.hasPhysical(
+            RoomId.LIVING_ROOM,
+            RoomStateManager.Flags.LIVING_EXTRA_PERSON
+        )
+
         canvas.save()
-        if (livingPictureTilted) canvas.rotate(-7f, pictureCenterX, pictureCenterY)
-        drawNormalizedRect(canvas, NormalizedRect(0.70f, 0.20f, 0.80f, 0.34f), coldPaint, 4f)
-        drawNormalizedRect(canvas, NormalizedRect(0.715f, 0.22f, 0.785f, 0.32f), wallPaint, 2f)
+        if (tilted) canvas.rotate(-7f, centerX, centerY)
+        drawNormalizedRect(canvas, NormalizedRect(0.69f, 0.18f, 0.81f, 0.36f), coldPaint, 5f)
+        drawNormalizedRect(canvas, NormalizedRect(0.704f, 0.20f, 0.796f, 0.34f), wallPaint, 3f)
+
+        val count = if (extraPerson) 5 else 4
+        val startX = centerX - (count - 1) * 11f
+        repeat(count) { index ->
+            val personX = startX + index * 22f
+            val personPaint = if (extraPerson && index == count - 1) dangerPaint else playerBodyPaint
+            personPaint.alpha = if (extraPerson && index == count - 1) 130 else 175
+            canvas.drawCircle(personX, centerY - 8f, 5f, personPaint)
+            rect.set(personX - 5f, centerY - 2f, personX + 5f, centerY + 14f)
+            canvas.drawRoundRect(rect, 5f, 5f, personPaint)
+            personPaint.alpha = 255
+        }
         canvas.restore()
     }
 
