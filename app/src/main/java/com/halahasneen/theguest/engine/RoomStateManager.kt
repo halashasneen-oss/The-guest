@@ -27,5 +27,9 @@ class RoomStateManager {
         const val BEDROOM_MESSAGE_CHANGED = "bedroom_message_changed"
         const val BEDROOM_DOOR_SHIFTED = "bedroom_door_shifted"
         const val BEDROOM_MEMORY_TAKEN = "bedroom_memory_taken"
+        const val BASEMENT_MEMORY_TAKEN = "basement_memory_taken"
+        const val BASEMENT_BLACKOUT_SEEN = "basement_blackout_seen"
+        const val BASEMENT_PRESENCE_SEEN = "basement_presence_seen"
+        const val BASEMENT_CHOICE_MADE = "basement_choice_made"
     }
 }
