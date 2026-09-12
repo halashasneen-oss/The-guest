@@ -16,6 +16,8 @@
 - Main menu, Continue, New Game, Settings, Credits and Pause.
 - Autosave/restore through versioned JSON in SharedPreferences.
 - Master/effects/ambient volume, vibration and subtitle controls.
+- Android 16 predictive-back handling for gameplay pause/resume.
+- Game-category manifest configuration so landscape gameplay remains appropriate on Android 16 large screens.
 
 ## Architecture
 
@@ -37,20 +39,21 @@ The project deliberately avoids a general-purpose game engine. Gameplay remains 
 ## Build requirements
 
 - Java 17
-- Android SDK 35
-- Gradle 8.10.2
+- Android SDK 36
+- Android Gradle Plugin 8.13.2
+- Gradle 8.13
 - `minSdk 26`
-- `targetSdk 35`
+- `targetSdk 36`
 
 The repository intentionally does not depend on a committed Gradle wrapper JAR. CI provisions the pinned Gradle version with `gradle/actions/setup-gradle`.
 
 ### Local verification
 
 ```bash
-gradle testDebugUnitTest assembleDebug bundleRelease
+gradle testDebugUnitTest lintDebug lintRelease assembleDebug bundleRelease
 ```
 
-The CI workflow runs tests, builds the debug APK and release AAB, enforces a 40 MB artifact budget, and uploads both build artifacts.
+The CI workflow runs unit tests and lint, builds the debug APK and release AAB, verifies the APK targets API 36, enforces a 40 MB artifact budget, and uploads both build artifacts.
 
 ## Signed release
 
