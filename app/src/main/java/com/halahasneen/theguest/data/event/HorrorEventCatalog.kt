@@ -16,6 +16,9 @@ object HorrorEventCatalog {
         HorrorEvent("bedroom_shadow", RoomId.BEDROOM, 1, 2, 24f, 4f, 999f, true, HorrorEventCategory.VISUAL, HorrorAction.BEDROOM_SHADOW),
         HorrorEvent("bedroom_whisper", RoomId.BEDROOM, 1, 2, 27f, 3f, 28f, false, HorrorEventCategory.AUDIO, HorrorAction.BEDROOM_WHISPER),
         HorrorEvent("bedroom_message_change", RoomId.BEDROOM, 1, 3, 31f, 3f, 999f, true, HorrorEventCategory.SUBTLE, HorrorAction.BEDROOM_MESSAGE_CHANGE),
-        HorrorEvent("bedroom_door_move", RoomId.BEDROOM, 1, 3, 36f, 2f, 999f, true, HorrorEventCategory.STRONG, HorrorAction.BEDROOM_DOOR_MOVE)
+        HorrorEvent("bedroom_door_move", RoomId.BEDROOM, 1, 3, 36f, 2f, 999f, true, HorrorEventCategory.STRONG, HorrorAction.BEDROOM_DOOR_MOVE),
+        HorrorEvent("basement_chain_rattle", RoomId.BASEMENT, 1, 3, 34f, 4f, 20f, false, HorrorEventCategory.AUDIO, HorrorAction.BASEMENT_CHAIN_RATTLE),
+        HorrorEvent("basement_blackout", RoomId.BASEMENT, 1, 4, 42f, 3f, 999f, true, HorrorEventCategory.STRONG, HorrorAction.BASEMENT_BLACKOUT),
+        HorrorEvent("basement_presence", RoomId.BASEMENT, 1, 4, 48f, 2f, 999f, true, HorrorEventCategory.VISUAL, HorrorAction.BASEMENT_PRESENCE)
     )
 }
