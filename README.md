@@ -1,25 +1,72 @@
 # The Guest | الزائر
 
-Offline psychological horror game for Android.
+**The Guest** is a native Android psychological-horror game built with Kotlin, XML Views and Canvas. The complete gameplay loop works offline and does not request sensitive permissions.
 
-## Architecture Contract (Milestone 0)
+## Version 1.0 scope
 
-- **UI:** Kotlin + XML Views. `GameActivity` hosts `GameCanvasView` and touch controls.
-- **Rendering:** `GameCanvasView` renders the current room, player, collision/debug-independent scene primitives, and lighting overlay. It does not own gameplay rules.
-- **Loop:** `GameLoop` is `Choreographer`-driven. It clamps delta time and delegates simulation updates before invalidating the canvas.
-- **State flow:** immutable-ish model objects represent game state; engine systems mutate state through explicit update methods. Rendering consumes the latest state only.
-- **Movement:** joystick input becomes a normalized direction; movement is delta-time based and resolved through `CollisionSystem` against normalized room geometry.
-- **Coordinates:** all world geometry uses normalized coordinates (`0f..1f`) and is converted to pixels only at render/input boundaries.
-- **Persistence:** later milestones will use a `GameRepository` backed by JSON in `SharedPreferences`, with an explicit `saveVersion`.
-- **Events:** later milestones will use `HorrorDirector` to select eligible weighted events using room/progress/tension/cooldown history rather than raw randomness.
-- **Audio:** later milestones will separate long ambience playback from short effects and spatial panning.
-- **Lifecycle:** game loop and future audio/timers must stop on pause and resume exactly once.
+- Five replayable rooms: entrance, living room, kitchen, bedroom and basement.
+- Normalized 0..1 world coordinates, delta-time movement and collision resolution.
+- Virtual joystick, interaction controls and landscape immersive mode.
+- Dynamic Canvas lighting and a hidden four-stage tension system.
+- `HorrorDirector` pacing with eligibility rules, weighted selection, cooldowns and one-shot events.
+- Native audio: MediaPlayer ambience plus SoundPool spatial effects for knocks, footsteps, drops and whispers.
+- Persistent physical room state and temporary perceived state.
+- Five story memories and an unreliable-memory narrative thread.
+- Behaviour tracking and two endings: Truth and Denial.
+- Main menu, Continue, New Game, Settings, Credits and Pause.
+- Autosave/restore through versioned JSON in SharedPreferences.
+- Master/effects/ambient volume, vibration and subtitle controls.
 
-## Milestone status
+## Architecture
 
-- Milestone 0: architecture audit complete. The repository was empty, so the project starts from a clean baseline.
-- Milestone 1: core engine implemented; CI is the acceptance gate before Milestone 2.
+The project deliberately avoids a general-purpose game engine. Gameplay remains split across focused systems:
 
-## Milestone policy
+- `GameLoop` — Choreographer-driven update/render scheduling with clamped delta time.
+- `GameCanvasView` — gameplay orchestration and input-facing state.
+- `RoomRenderer` — cached Paint/Path/RectF Canvas rendering without room rules.
+- `CollisionSystem` — normalized collision and sliding.
+- `InteractionSystem` — nearest eligible hotspot selection.
+- `LightingSystem` — darkness/player-light overlay.
+- `AudioManager` / `AudioMath` — native playback and stereo spatialization.
+- `TensionSystem` — hidden 0–100 tension and stage thresholds.
+- `HorrorDirector` — paced horror-event selection.
+- `RoomStateManager` — persistent physical/perceived room flags.
+- `EndingResolver` — ending determination from accumulated player behaviour.
+- `GameRepository` / `GameSaveCodec` — versioned offline save/restore.
 
-Each milestone must compile and test successfully before the next milestone is started. No completed milestone may contain fake implementations or unfinished controls.
+## Build requirements
+
+- Java 17
+- Android SDK 35
+- Gradle 8.10.2
+- `minSdk 26`
+- `targetSdk 35`
+
+The repository intentionally does not depend on a committed Gradle wrapper JAR. CI provisions the pinned Gradle version with `gradle/actions/setup-gradle`.
+
+### Local verification
+
+```bash
+gradle testDebugUnitTest assembleDebug bundleRelease
+```
+
+The CI workflow runs tests, builds the debug APK and release AAB, enforces a 40 MB artifact budget, and uploads both build artifacts.
+
+## Signed release
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`. The workflow expects these GitHub Actions secrets:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+The keystore is decoded only into the runner's temporary directory. Signing credentials are never committed to the repository.
+
+## Privacy and connectivity
+
+The core game is fully offline. The manifest requests no Camera, Microphone, Contacts, Storage, Location or Internet permission.
+
+## Milestones
+
+Milestones 0–13 are implemented: architecture audit, core engine, entrance, audio, tension, horror director, living room, kitchen, bedroom, basement, endings, menus/settings, polish and release automation.

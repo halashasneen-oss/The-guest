@@ -89,7 +89,7 @@ class GameActivity : ImmersiveActivity() {
         super.onPause()
     }
 
-    @Suppress("DEPRECATION")
+    @Deprecated("Framework back callback retained for Android 8+ compatibility")
     override fun onBackPressed() {
         if (pausedByMenu) resumeFromPause() else showPauseMenu()
     }
