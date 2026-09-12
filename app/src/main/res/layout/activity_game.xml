@@ -15,7 +15,7 @@
         android:layout_height="150dp"
         android:layout_gravity="bottom|start"
         android:layout_margin="24dp"
-        android:contentDescription="Movement joystick" />
+        android:contentDescription="@string/movement_joystick" />
 
     <com.halahasneen.theguest.ui.components.InteractionButtonView
         android:id="@+id/interactionButton"
@@ -23,5 +23,42 @@
         android:layout_height="92dp"
         android:layout_gravity="bottom|end"
         android:layout_margin="34dp"
-        android:contentDescription="Interact" />
+        android:contentDescription="@string/interact" />
+
+    <Button
+        android:id="@+id/pauseButton"
+        android:layout_width="52dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="14dp"
+        android:background="@drawable/menu_button"
+        android:contentDescription="@string/pause_game"
+        android:text="Ⅱ"
+        android:textColor="@color/ui_text"
+        android:textSize="18sp" />
+
+    <LinearLayout
+        android:id="@+id/pauseOverlay"
+        android:layout_width="340dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/panel_background"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="18dp"
+            android:text="@string/pause"
+            android:textColor="@color/ui_text"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <Button android:id="@+id/resumeButton" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginBottom="10dp" android:background="@drawable/menu_button" android:text="@string/resume" android:textColor="@color/ui_text" />
+        <Button android:id="@+id/pauseSettingsButton" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginBottom="10dp" android:background="@drawable/menu_button" android:text="@string/settings" android:textColor="@color/ui_text" />
+        <Button android:id="@+id/mainMenuButton" android:layout_width="match_parent" android:layout_height="50dp" android:background="@drawable/menu_button" android:text="@string/main_menu" android:textColor="@color/ui_text" />
+    </LinearLayout>
 </FrameLayout>
