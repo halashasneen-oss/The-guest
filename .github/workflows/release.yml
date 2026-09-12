@@ -16,10 +16,10 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
+          gradle-version: '8.13'
 
       - name: Validate signing secrets
         env:
@@ -38,15 +38,16 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/the-guest-release.keystore"
 
-      - name: Test and build signed AAB
+      - name: Test, lint, and build signed AAB
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/the-guest-release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle testDebugUnitTest bundleRelease --stacktrace
+        run: gradle testDebugUnitTest lintDebug lintRelease bundleRelease --stacktrace
 
-      - name: Enforce AAB size budget
+      - name: Enforce API 36 and AAB size budget
+        shell: bash
         run: |
           aab="app/build/outputs/bundle/release/app-release.aab"
           max=$((40 * 1024 * 1024))
