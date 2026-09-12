@@ -7,6 +7,7 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import com.halahasneen.theguest.R
+import com.halahasneen.theguest.ui.components.InteractionButtonView
 import com.halahasneen.theguest.ui.components.JoystickView
 
 class GameActivity : Activity() {
@@ -17,6 +18,7 @@ class GameActivity : Activity() {
         setContentView(R.layout.activity_game)
         gameCanvas = findViewById(R.id.gameCanvas)
         findViewById<JoystickView>(R.id.joystick).onDirectionChanged = gameCanvas::setInputDirection
+        findViewById<InteractionButtonView>(R.id.interactionButton).onInteraction = gameCanvas::interact
         enterImmersiveMode()
     }
 

@@ -14,5 +14,14 @@
         android:layout_width="150dp"
         android:layout_height="150dp"
         android:layout_gravity="bottom|start"
-        android:layout_margin="24dp" />
+        android:layout_margin="24dp"
+        android:contentDescription="Movement joystick" />
+
+    <com.halahasneen.theguest.ui.components.InteractionButtonView
+        android:id="@+id/interactionButton"
+        android:layout_width="92dp"
+        android:layout_height="92dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="34dp"
+        android:contentDescription="Interact" />
 </FrameLayout>

@@ -7,11 +7,17 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import com.halahasneen.theguest.data.model.HotspotType
 import com.halahasneen.theguest.data.model.NormalizedPoint
 import com.halahasneen.theguest.data.model.NormalizedRect
 import com.halahasneen.theguest.data.model.PlayerState
+import com.halahasneen.theguest.data.model.RoomData
+import com.halahasneen.theguest.data.model.RoomId
+import com.halahasneen.theguest.data.room.RoomCatalog
 import com.halahasneen.theguest.engine.CollisionSystem
 import com.halahasneen.theguest.engine.GameLoop
+import com.halahasneen.theguest.engine.InteractionSystem
+import com.halahasneen.theguest.engine.LightingSystem
 import kotlin.math.hypot
 
 class GameCanvasView @JvmOverloads constructor(
@@ -19,21 +25,43 @@ class GameCanvasView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    private val player = PlayerState()
+    private val player = PlayerState(position = NormalizedPoint(0.18f, 0.50f))
     private var inputX = 0f
     private var inputY = 0f
 
-    private val walkable = NormalizedRect(0.08f, 0.10f, 0.92f, 0.90f)
-    private val obstacles = listOf(
-        NormalizedRect(0.43f, 0.32f, 0.57f, 0.68f),
-        NormalizedRect(0.72f, 0.16f, 0.86f, 0.30f)
-    )
-    private val collisionSystem = CollisionSystem(walkable, obstacles)
+    private var room: RoomData = RoomCatalog.entrance
+    private var collisionSystem = CollisionSystem(room.walkableBounds, room.collisionRects)
+    private val interactionSystem = InteractionSystem()
+    private val lightingSystem = LightingSystem()
 
-    private val roomPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 22, 38) }
-    private val obstaclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(59, 75, 107) }
+    private val collectedMemories = mutableSetOf<String>()
+    private val hiddenHotspots = mutableSetOf<String>()
+    private var prompt: String? = null
+    private var message: String? = "عدت إلى البيت بعد غياب طويل."
+    private var messageSeconds = 4f
+
+    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(13, 11, 20) }
+    private val floorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 22, 38) }
+    private val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(20, 17, 29) }
+    private val furniturePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(45, 40, 57) }
+    private val furnitureEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        color = Color.rgb(59, 75, 107)
+    }
+    private val warmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 176, 75) }
+    private val coldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(59, 75, 107) }
     private val playerBodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(234, 234, 234) }
     private val playerHeadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 176, 75) }
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(234, 234, 234)
+        textAlign = Paint.Align.CENTER
+    }
+    private val dimTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(234, 234, 234)
+        alpha = 165
+        textAlign = Paint.Align.CENTER
+    }
     private val rect = RectF()
 
     private val gameLoop = GameLoop(
@@ -52,6 +80,26 @@ class GameCanvasView @JvmOverloads constructor(
         }
     }
 
+    fun interact() {
+        val hotspot = interactionSystem.nearest(player.position, room.hotspots, hiddenHotspots)
+        if (hotspot == null) {
+            showMessage("لا شيء يلفت الانتباه هنا.", 1.4f)
+            return
+        }
+
+        when (hotspot.type) {
+            HotspotType.INSPECT -> showMessage(hotspot.message, 3.6f)
+            HotspotType.COLLECT -> {
+                hotspot.memoryItemId?.let(collectedMemories::add)
+                hiddenHotspots.add(hotspot.id)
+                showMessage(hotspot.message, 4f)
+            }
+            HotspotType.DOOR -> hotspot.targetRoom?.let { target ->
+                changeRoom(target)
+            }
+        }
+    }
+
     fun resumeGame() = gameLoop.start()
     fun pauseGame() = gameLoop.stop()
 
@@ -61,25 +109,137 @@ class GameCanvasView @JvmOverloads constructor(
             player.position.y + inputY * player.speedPerSecond * deltaSeconds
         )
         player.position = collisionSystem.resolve(player.position, desired, player.radius)
+        prompt = interactionSystem.nearest(player.position, room.hotspots, hiddenHotspots)?.label
+
+        if (messageSeconds > 0f) {
+            messageSeconds = (messageSeconds - deltaSeconds).coerceAtLeast(0f)
+            if (messageSeconds == 0f) message = null
+        }
+    }
+
+    private fun changeRoom(target: RoomId) {
+        room = RoomCatalog.room(target)
+        collisionSystem = CollisionSystem(room.walkableBounds, room.collisionRects)
+        player.position = when (target) {
+            RoomId.ENTRANCE -> NormalizedPoint(0.80f, 0.50f)
+            RoomId.LIVING_ROOM -> NormalizedPoint(0.18f, 0.50f)
+        }
+        showMessage(
+            if (target == RoomId.LIVING_ROOM) "دخلت الصالون. البيت أكثر هدوءًا مما ينبغي."
+            else "عدت إلى المدخل.",
+            3f
+        )
+    }
+
+    private fun showMessage(value: String, seconds: Float) {
+        message = value
+        messageSeconds = seconds
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(Color.rgb(13, 11, 20))
-        drawNormalizedRect(canvas, walkable, roomPaint)
-        obstacles.forEach { drawNormalizedRect(canvas, it, obstaclePaint) }
+        canvas.drawPaint(backgroundPaint)
+        drawNormalizedRect(canvas, room.walkableBounds, floorPaint, 20f)
+
+        when (room.id) {
+            RoomId.ENTRANCE -> drawEntrance(canvas)
+            RoomId.LIVING_ROOM -> drawLivingRoomShell(canvas)
+        }
+
         drawPlayer(canvas)
+        lightingSystem.draw(canvas, width, height, player.position.x, player.position.y)
+        drawHud(canvas)
     }
 
-    private fun drawNormalizedRect(canvas: Canvas, area: NormalizedRect, paint: Paint) {
+    private fun drawEntrance(canvas: Canvas) {
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
+
+        // Narrow runner rug.
+        coldPaint.alpha = 90
+        drawNormalizedRect(canvas, NormalizedRect(0.36f, 0.38f, 0.70f, 0.62f), coldPaint, 16f)
+        coldPaint.alpha = 255
+
+        // Console table beneath the old clock.
+        drawNormalizedRect(canvas, NormalizedRect(0.15f, 0.58f, 0.34f, 0.72f), furniturePaint, 12f)
+        drawNormalizedRectOutline(canvas, NormalizedRect(0.15f, 0.58f, 0.34f, 0.72f), furnitureEdgePaint, 12f)
+        drawClock(canvas)
+
+        // Tall cabinet.
+        drawNormalizedRect(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furniturePaint, 10f)
+        drawNormalizedRectOutline(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furnitureEdgePaint, 10f)
+
+        // Door to the living room.
+        drawNormalizedRect(canvas, NormalizedRect(0.84f, 0.38f, 0.92f, 0.63f), wallPaint, 6f)
+        warmPaint.alpha = 115
+        canvas.drawCircle(0.855f * width, 0.505f * height, minOf(width, height) * 0.009f, warmPaint)
+        warmPaint.alpha = 255
+
+        // First memory: a small brass key on the console.
+        if ("entrance_key" !in hiddenHotspots) {
+            val x = 0.25f * width
+            val y = 0.55f * height
+            canvas.drawCircle(x, y, minOf(width, height) * 0.012f, warmPaint)
+            canvas.drawRect(x, y - 2f, x + minOf(width, height) * 0.045f, y + 2f, warmPaint)
+        }
+    }
+
+    private fun drawClock(canvas: Canvas) {
+        val x = 0.20f * width
+        val y = 0.24f * height
+        val radius = minOf(width, height) * 0.045f
+        canvas.drawCircle(x, y, radius, furniturePaint)
+        canvas.drawCircle(x, y, radius, furnitureEdgePaint)
+        canvas.drawLine(x, y, x, y - radius * 0.48f, warmPaint)
+        canvas.drawLine(x, y, x + radius * 0.38f, y + radius * 0.15f, warmPaint)
+    }
+
+    private fun drawLivingRoomShell(canvas: Canvas) {
+        drawNormalizedRect(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furniturePaint, 18f)
+        drawNormalizedRectOutline(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furnitureEdgePaint, 18f)
+        drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.38f, 0.15f, 0.63f), wallPaint, 6f)
+
+        // A framed family picture hints at the next milestone without triggering its event yet.
+        drawNormalizedRect(canvas, NormalizedRect(0.70f, 0.20f, 0.80f, 0.34f), coldPaint, 4f)
+        drawNormalizedRect(canvas, NormalizedRect(0.715f, 0.22f, 0.785f, 0.32f), wallPaint, 2f)
+    }
+
+    private fun drawHud(canvas: Canvas) {
+        val unit = minOf(width, height).toFloat()
+        textPaint.textSize = unit * 0.036f
+        dimTextPaint.textSize = unit * 0.028f
+
+        canvas.drawText(room.name, width * 0.5f, height * 0.075f, dimTextPaint)
+        message?.let { canvas.drawText(it, width * 0.5f, height * 0.93f, textPaint) }
+        if (message == null) {
+            prompt?.let { canvas.drawText(it, width * 0.5f, height * 0.90f, dimTextPaint) }
+        }
+    }
+
+    private fun drawNormalizedRect(
+        canvas: Canvas,
+        area: NormalizedRect,
+        paint: Paint,
+        radius: Float
+    ) {
         rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height)
-        canvas.drawRoundRect(rect, 18f, 18f, paint)
+        canvas.drawRoundRect(rect, radius, radius, paint)
+    }
+
+    private fun drawNormalizedRectOutline(
+        canvas: Canvas,
+        area: NormalizedRect,
+        paint: Paint,
+        radius: Float
+    ) {
+        rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height)
+        canvas.drawRoundRect(rect, radius, radius, paint)
     }
 
     private fun drawPlayer(canvas: Canvas) {
         val x = player.position.x * width
         val y = player.position.y * height
-        val unit = minOf(width, height)
+        val unit = minOf(width, height).toFloat()
         val bodyWidth = unit * 0.035f
         val bodyHeight = unit * 0.07f
         rect.set(x - bodyWidth, y - bodyHeight * 0.2f, x + bodyWidth, y + bodyHeight)
