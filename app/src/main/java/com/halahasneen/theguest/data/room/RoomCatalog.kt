@@ -13,6 +13,7 @@ object RoomCatalog {
     val livingMemory = MemoryItem("living_birthday_card", "بطاقة عيد قديمة", "بطاقة باسم العائلة. هناك توقيع خامس مطموس بالحبر، مع أنني أتذكر أربعة أسماء فقط.", RoomId.LIVING_ROOM, 2)
     val kitchenMemory = MemoryItem("kitchen_chipped_cup", "الكوب المشروخ", "كوب قديم عليه خمسة خطوط محفورة. أتذكر أن لكل واحد منا خطًا... لكننا كنا أربعة.", RoomId.KITCHEN, 3)
     val bedroomMemory = MemoryItem("bedroom_letter_fragment", "قصاصة رسالة", "جزء ممزق من رسالة قديمة. الخط مألوف، لكن الجملة الأخيرة تبدو وكأنها موجهة إليّ الآن.", RoomId.BEDROOM, 4)
+    val basementMemory = MemoryItem("basement_tape", "شريط التسجيل", "شريط قديم بصوت أحد أفراد العائلة. التسجيل يذكر اسمي وكأنني الشخص الذي غادر البيت، لا الشخص الذي عاد إليه.", RoomId.BASEMENT, 5)
 
     val entrance = RoomData(
         RoomId.ENTRANCE, "المدخل", NormalizedRect(0.07f, 0.10f, 0.93f, 0.90f),
@@ -57,8 +58,25 @@ object RoomCatalog {
         listOf(
             Hotspot("bedroom_note", HotspotType.INSPECT, NormalizedPoint(0.72f, 0.25f), 0.09f, "اقرأ الرسالة", "إذا عدت يومًا، لا تنزل إلى القبو."),
             Hotspot("bedroom_letter_fragment", HotspotType.COLLECT, NormalizedPoint(0.30f, 0.58f), 0.08f, "التقط القصاصة", "ذكرى 4/5 — قصاصة رسالة", memoryItemId = bedroomMemory.id),
-            Hotspot("bedroom_to_kitchen", HotspotType.DOOR, NormalizedPoint(0.12f, 0.52f), 0.09f, "ارجع إلى المطبخ", "عدت إلى المطبخ.", targetRoom = RoomId.KITCHEN)
+            Hotspot("bedroom_to_kitchen", HotspotType.DOOR, NormalizedPoint(0.12f, 0.52f), 0.09f, "ارجع إلى المطبخ", "عدت إلى المطبخ.", targetRoom = RoomId.KITCHEN),
+            Hotspot("bedroom_to_basement", HotspotType.DOOR, NormalizedPoint(0.86f, 0.73f), 0.09f, "انزل إلى القبو", "الهواء أسفل الدرج بارد وثقيل.", targetRoom = RoomId.BASEMENT)
         ), bedroomMemory.id
+    )
+
+    val basement = RoomData(
+        RoomId.BASEMENT, "القبو", NormalizedRect(0.07f, 0.10f, 0.93f, 0.90f),
+        listOf(
+            NormalizedRect(0.15f, 0.16f, 0.35f, 0.31f),
+            NormalizedRect(0.42f, 0.39f, 0.60f, 0.64f),
+            NormalizedRect(0.70f, 0.18f, 0.86f, 0.33f)
+        ),
+        listOf(
+            Hotspot("basement_family_box", HotspotType.INSPECT, NormalizedPoint(0.26f, 0.35f), 0.09f, "افحص الصندوق", "أغراض قديمة مرتبة بعناية... كأن أحدًا كان ينتظر عودتي."),
+            Hotspot("basement_tape", HotspotType.COLLECT, NormalizedPoint(0.53f, 0.70f), 0.08f, "التقط شريط التسجيل", "ذكرى 5/5 — شريط التسجيل", memoryItemId = basementMemory.id),
+            Hotspot("basement_confront", HotspotType.CHOICE, NormalizedPoint(0.78f, 0.52f), 0.10f, "واجه الحقيقة", "لن أهرب هذه المرة."),
+            Hotspot("basement_turn_away", HotspotType.CHOICE, NormalizedPoint(0.22f, 0.72f), 0.10f, "ابتعد عن الحقيقة", "يكفي. أريد الخروج من هنا."),
+            Hotspot("basement_to_bedroom", HotspotType.DOOR, NormalizedPoint(0.12f, 0.50f), 0.09f, "اصعد إلى غرفة النوم", "عدت إلى غرفة النوم.", targetRoom = RoomId.BEDROOM)
+        ), basementMemory.id
     )
 
     fun room(id: RoomId): RoomData = when (id) {
@@ -66,5 +84,6 @@ object RoomCatalog {
         RoomId.LIVING_ROOM -> livingRoom
         RoomId.KITCHEN -> kitchen
         RoomId.BEDROOM -> bedroom
+        RoomId.BASEMENT -> basement
     }
 }
