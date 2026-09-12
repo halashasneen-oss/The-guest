@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="horror_bg">#0D0B14</color>
+    <color name="horror_shadow">#1A1626</color>
+    <color name="warm_light">#E8B04B</color>
+    <color name="cold_light">#3B4B6B</color>
+    <color name="danger">#8B1E3F</color>
+    <color name="ui_text">#EAEAEA</color>
+</resources>
