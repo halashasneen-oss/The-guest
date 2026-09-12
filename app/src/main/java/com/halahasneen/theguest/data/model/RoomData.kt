@@ -4,10 +4,11 @@ enum class RoomId {
     ENTRANCE,
     LIVING_ROOM,
     KITCHEN,
-    BEDROOM
+    BEDROOM,
+    BASEMENT
 }
 
-enum class HotspotType { INSPECT, COLLECT, DOOR }
+enum class HotspotType { INSPECT, COLLECT, DOOR, CHOICE }
 
 data class Hotspot(
     val id: String,
