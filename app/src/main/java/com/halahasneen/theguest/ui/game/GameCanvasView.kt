@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
@@ -29,14 +30,11 @@ import com.halahasneen.theguest.engine.TensionStage
 import com.halahasneen.theguest.engine.TensionSystem
 import kotlin.math.hypot
 
-class GameCanvasView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
-) : View(context, attrs) {
-
+class GameCanvasView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
     var onSpatialEffectRequested: ((NormalizedPoint, NormalizedPoint) -> Unit)? = null
     var onFootstepsRequested: ((NormalizedPoint, NormalizedPoint) -> Unit)? = null
     var onDropRequested: ((NormalizedPoint, NormalizedPoint) -> Unit)? = null
+    var onWhisperRequested: ((NormalizedPoint, NormalizedPoint) -> Unit)? = null
     var onTensionStageChanged: ((TensionStage) -> Unit)? = null
 
     private val player = PlayerState(position = NormalizedPoint(0.18f, 0.50f))
@@ -55,6 +53,7 @@ class GameCanvasView @JvmOverloads constructor(
     private val collectedMemories = mutableSetOf<String>()
     private val hiddenHotspots = mutableSetOf<String>()
     private var temporaryBlackoutSeconds = 0f
+    private var shadowSeconds = 0f
     private var prompt: String? = null
     private var message: String? = "عدت إلى البيت بعد غياب طويل."
     private var messageSeconds = 4f
@@ -64,11 +63,7 @@ class GameCanvasView @JvmOverloads constructor(
     private val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(20, 17, 29) }
     private val furniturePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(45, 40, 57) }
     private val furnitureDarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(31, 27, 42) }
-    private val furnitureEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 3f
-        color = Color.rgb(59, 75, 107)
-    }
+    private val furnitureEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; color = Color.rgb(59, 75, 107) }
     private val warmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 176, 75) }
     private val coldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(59, 75, 107) }
     private val dangerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(139, 30, 63) }
@@ -77,6 +72,7 @@ class GameCanvasView @JvmOverloads constructor(
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(234, 234, 234); textAlign = Paint.Align.CENTER }
     private val dimTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(234, 234, 234); alpha = 165; textAlign = Paint.Align.CENTER }
     private val rect = RectF()
+    private val shadowPath = Path()
 
     private val gameLoop = GameLoop(onUpdate = ::updateGame, onRenderRequested = ::postInvalidateOnAnimation)
 
@@ -87,10 +83,7 @@ class GameCanvasView @JvmOverloads constructor(
 
     fun interact() {
         val hotspot = interactionSystem.nearest(player.position, currentHotspots(), hiddenHotspots)
-        if (hotspot == null) {
-            showMessage("لا شيء يلفت الانتباه هنا.", 1.4f)
-            return
-        }
+        if (hotspot == null) { showMessage("لا شيء يلفت الانتباه هنا.", 1.4f); return }
         when (hotspot.type) {
             HotspotType.INSPECT -> inspect(hotspot)
             HotspotType.COLLECT -> collect(hotspot)
@@ -99,6 +92,7 @@ class GameCanvasView @JvmOverloads constructor(
                 when (target) {
                     RoomId.LIVING_ROOM -> tensionSystem.addStimulus(3f)
                     RoomId.KITCHEN -> tensionSystem.addStimulus(4f)
+                    RoomId.BEDROOM -> tensionSystem.addStimulus(5f)
                     RoomId.ENTRANCE -> Unit
                 }
                 changeRoom(target)
@@ -111,12 +105,8 @@ class GameCanvasView @JvmOverloads constructor(
     fun pauseGame() = gameLoop.stop()
 
     private fun currentHotspots(): List<Hotspot> {
-        if (room.id != RoomId.KITCHEN || !roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)) {
-            return room.hotspots
-        }
-        return room.hotspots.map {
-            if (it.id == "kitchen_loose_jar") it.copy(position = NormalizedPoint(0.30f, 0.72f)) else it
-        }
+        if (room.id != RoomId.KITCHEN || !roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)) return room.hotspots
+        return room.hotspots.map { if (it.id == "kitchen_loose_jar") it.copy(position = NormalizedPoint(0.30f, 0.72f)) else it }
     }
 
     private fun inspect(hotspot: Hotspot) {
@@ -127,10 +117,12 @@ class GameCanvasView @JvmOverloads constructor(
                 tensionSystem.addStimulus(if (moved) 2.2f else 0.8f)
                 showMessage(if (moved) "كان المرطبان قرب الطاولة... كيف وصل إلى هنا؟" else hotspot.message, 3.8f)
             }
-            else -> {
-                tensionSystem.addStimulus(0.8f)
-                showMessage(hotspot.message, 3.6f)
+            "bedroom_note" -> {
+                val changed = roomStateManager.hasPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MESSAGE_CHANGED)
+                tensionSystem.addStimulus(if (changed) 3f else 1f)
+                showMessage(if (changed) "إذا عدت يومًا... أنت تعرف من ينتظرك." else hotspot.message, 4.2f)
             }
+            else -> { tensionSystem.addStimulus(0.8f); showMessage(hotspot.message, 3.6f) }
         }
     }
 
@@ -141,8 +133,7 @@ class GameCanvasView @JvmOverloads constructor(
             extraPerson -> { tensionSystem.addStimulus(1.5f); showMessage("خمسة أشخاص. لا أستطيع تذكّر وجه الخامس.", 4f) }
             tilted -> {
                 roomStateManager.markPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_EXTRA_PERSON)
-                tensionSystem.addStimulus(6f)
-                temporaryBlackoutSeconds = 0.7f
+                tensionSystem.addStimulus(6f); temporaryBlackoutSeconds = 0.7f
                 showMessage("كانوا أربعة... من هذا الخامس؟", 4.5f)
             }
             else -> { tensionSystem.addStimulus(1f); showMessage("أربعة وجوه مألوفة. هكذا أتذكرها دائمًا.", 3.6f) }
@@ -155,36 +146,35 @@ class GameCanvasView @JvmOverloads constructor(
         when (hotspot.id) {
             "living_birthday_card" -> {
                 roomStateManager.markPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_MEMORY_TAKEN)
-                tensionSystem.addStimulus(5f)
-                showMessage("ذكرى 2/5 — بطاقة عيد قديمة... توقيع خامس مطموس.", 4.5f)
+                tensionSystem.addStimulus(5f); showMessage("ذكرى 2/5 — بطاقة عيد قديمة... توقيع خامس مطموس.", 4.5f)
             }
             "kitchen_chipped_cup" -> {
                 roomStateManager.markPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_MEMORY_TAKEN)
-                tensionSystem.addStimulus(6f)
-                showMessage("ذكرى 3/5 — خمسة خطوط على الكوب. لماذا خمسة؟", 4.5f)
+                tensionSystem.addStimulus(6f); showMessage("ذكرى 3/5 — خمسة خطوط على الكوب. لماذا خمسة؟", 4.5f)
+            }
+            "bedroom_letter_fragment" -> {
+                roomStateManager.markPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MEMORY_TAKEN)
+                tensionSystem.addStimulus(7f); showMessage("ذكرى 4/5 — القصاصة تحمل تاريخ الليلة التي غادرتُ فيها البيت.", 4.8f)
             }
             else -> { tensionSystem.addStimulus(4f); showMessage(hotspot.message, 4f) }
         }
     }
 
     private fun updateGame(deltaSeconds: Float) {
-        val desired = NormalizedPoint(
-            player.position.x + inputX * player.speedPerSecond * deltaSeconds,
-            player.position.y + inputY * player.speedPerSecond * deltaSeconds
-        )
+        val desired = NormalizedPoint(player.position.x + inputX * player.speedPerSecond * deltaSeconds, player.position.y + inputY * player.speedPerSecond * deltaSeconds)
         player.position = collisionSystem.resolve(player.position, desired, player.radius)
         prompt = interactionSystem.nearest(player.position, currentHotspots(), hiddenHotspots)?.label
-
         val inSafeLight = isNearSafeLight()
         tensionSystem.update(deltaSeconds, inDarkness = !inSafeLight, inSafeLight = inSafeLight)
         notifyTensionStageIfNeeded()
         temporaryBlackoutSeconds = (temporaryBlackoutSeconds - deltaSeconds).coerceAtLeast(0f)
+        shadowSeconds = (shadowSeconds - deltaSeconds).coerceAtLeast(0f)
 
         horrorDirector.update(
-            deltaSeconds = deltaSeconds,
-            context = HorrorContext(room.id, roomVisitCounts[room.id] ?: 1, collectedMemories.size, tensionSystem.level),
-            events = HorrorEventCatalog.events,
-            intensityMultiplier = tensionSystem.eventIntensityMultiplier
+            deltaSeconds,
+            HorrorContext(room.id, roomVisitCounts[room.id] ?: 1, collectedMemories.size, tensionSystem.level),
+            HorrorEventCatalog.events,
+            tensionSystem.eventIntensityMultiplier
         )?.let(::triggerHorrorEvent)
 
         if (messageSeconds > 0f) {
@@ -197,30 +187,40 @@ class GameCanvasView @JvmOverloads constructor(
         when (event.action) {
             HorrorAction.LIVING_PICTURE_TILT -> {
                 roomStateManager.markPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_PICTURE_TILTED)
-                tensionSystem.addStimulus(2.5f)
-                showMessage("...هل كانت الصورة مائلة قبل قليل؟", 2.8f)
+                tensionSystem.addStimulus(2.5f); showMessage("...هل كانت الصورة مائلة قبل قليل؟", 2.8f)
             }
-            HorrorAction.LIVING_SINGLE_KNOCK -> {
-                onSpatialEffectRequested?.invoke(NormalizedPoint(0.84f, 0.28f), player.position)
-                tensionSystem.addStimulus(1.5f)
-            }
+            HorrorAction.LIVING_SINGLE_KNOCK -> { onSpatialEffectRequested?.invoke(NormalizedPoint(0.84f, 0.28f), player.position); tensionSystem.addStimulus(1.5f) }
             HorrorAction.LIVING_LIGHT_DIM -> { temporaryBlackoutSeconds = 2.8f; tensionSystem.addStimulus(2f) }
-            HorrorAction.KITCHEN_FOOTSTEPS -> {
-                onFootstepsRequested?.invoke(NormalizedPoint(0.88f, 0.22f), player.position)
-                tensionSystem.addStimulus(2.5f)
-                showMessage("خطوات قصيرة... ثم صمت.", 2.2f)
-            }
+            HorrorAction.KITCHEN_FOOTSTEPS -> { onFootstepsRequested?.invoke(NormalizedPoint(0.88f, 0.22f), player.position); tensionSystem.addStimulus(2.5f); showMessage("خطوات قصيرة... ثم صمت.", 2.2f) }
             HorrorAction.KITCHEN_OBJECT_DROP -> {
                 roomStateManager.markPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_OBJECT_FALLEN)
-                onDropRequested?.invoke(NormalizedPoint(0.73f, 0.66f), player.position)
-                temporaryBlackoutSeconds = 0.45f
-                tensionSystem.addStimulus(4f)
-                showMessage("شيء سقط خلفي.", 2.5f)
+                onDropRequested?.invoke(NormalizedPoint(0.73f, 0.66f), player.position); temporaryBlackoutSeconds = 0.45f
+                tensionSystem.addStimulus(4f); showMessage("شيء سقط خلفي.", 2.5f)
             }
             HorrorAction.KITCHEN_ITEM_MOVE -> {
                 roomStateManager.markPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)
+                tensionSystem.addStimulus(3.5f); showMessage("هناك شيء مختلف في المطبخ...", 2.5f)
+            }
+            HorrorAction.BEDROOM_SHADOW -> {
+                shadowSeconds = 1.15f
+                tensionSystem.addStimulus(5f)
+            }
+            HorrorAction.BEDROOM_MESSAGE_CHANGE -> {
+                roomStateManager.markPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MESSAGE_CHANGED)
+                temporaryBlackoutSeconds = 0.65f
+                tensionSystem.addStimulus(4.5f)
+                showMessage("الكلمات على الورقة لم تعد كما كانت.", 3f)
+            }
+            HorrorAction.BEDROOM_DOOR_MOVE -> {
+                roomStateManager.markPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_DOOR_SHIFTED)
+                onSpatialEffectRequested?.invoke(NormalizedPoint(0.12f, 0.52f), player.position)
+                tensionSystem.addStimulus(5f)
+                showMessage("الباب تحرّك وحده.", 2.7f)
+            }
+            HorrorAction.BEDROOM_WHISPER -> {
+                onWhisperRequested?.invoke(NormalizedPoint(0.91f, 0.42f), player.position)
                 tensionSystem.addStimulus(3.5f)
-                showMessage("هناك شيء مختلف في المطبخ...", 2.5f)
+                showMessage("همس خافت: «ارجع...»", 2.5f)
             }
         }
         notifyTensionStageIfNeeded()
@@ -233,8 +233,7 @@ class GameCanvasView @JvmOverloads constructor(
 
     private fun isNearSafeLight(): Boolean {
         if (room.id != RoomId.ENTRANCE) return false
-        val dx = player.position.x - 0.25f
-        val dy = player.position.y - 0.55f
+        val dx = player.position.x - 0.25f; val dy = player.position.y - 0.55f
         return dx * dx + dy * dy <= 0.16f * 0.16f
     }
 
@@ -244,13 +243,15 @@ class GameCanvasView @JvmOverloads constructor(
         roomVisitCounts[target] = (roomVisitCounts[target] ?: 0) + 1
         player.position = when (target) {
             RoomId.ENTRANCE -> NormalizedPoint(0.80f, 0.50f)
-            RoomId.LIVING_ROOM -> NormalizedPoint(0.18f, if (roomVisitCounts[target] == 1) 0.50f else 0.68f)
+            RoomId.LIVING_ROOM -> NormalizedPoint(0.18f, 0.60f)
             RoomId.KITCHEN -> NormalizedPoint(0.18f, 0.52f)
+            RoomId.BEDROOM -> NormalizedPoint(0.18f, 0.52f)
         }
         val entryMessage = when (target) {
             RoomId.ENTRANCE -> "عدت إلى المدخل."
             RoomId.LIVING_ROOM -> "دخلت الصالون. البيت أكثر هدوءًا مما ينبغي."
             RoomId.KITCHEN -> "المطبخ أبرد من بقية البيت."
+            RoomId.BEDROOM -> "غرفة النوم ما زالت كما تركتها... تقريبًا."
         }
         showMessage(entryMessage, 3f)
     }
@@ -265,26 +266,22 @@ class GameCanvasView @JvmOverloads constructor(
             RoomId.ENTRANCE -> drawEntrance(canvas)
             RoomId.LIVING_ROOM -> drawLivingRoom(canvas)
             RoomId.KITCHEN -> drawKitchen(canvas)
+            RoomId.BEDROOM -> drawBedroom(canvas)
         }
+        if (room.id == RoomId.BEDROOM && shadowSeconds > 0f) drawBedroomShadow(canvas)
         drawPlayer(canvas)
-        lightingSystem.draw(
-            canvas, width, height, player.position.x, player.position.y,
-            tensionSystem.level, (temporaryBlackoutSeconds / 2.8f).coerceIn(0f, 1f)
-        )
+        lightingSystem.draw(canvas, width, height, player.position.x, player.position.y, tensionSystem.level, (temporaryBlackoutSeconds / 2.8f).coerceIn(0f, 1f))
         drawHud(canvas)
     }
 
     private fun drawEntrance(canvas: Canvas) {
         drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
         drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
-        coldPaint.alpha = 90
-        drawNormalizedRect(canvas, NormalizedRect(0.36f, 0.38f, 0.70f, 0.62f), coldPaint, 16f)
-        coldPaint.alpha = 255
+        coldPaint.alpha = 90; drawNormalizedRect(canvas, NormalizedRect(0.36f, 0.38f, 0.70f, 0.62f), coldPaint, 16f); coldPaint.alpha = 255
         drawNormalizedRect(canvas, NormalizedRect(0.15f, 0.58f, 0.34f, 0.72f), furniturePaint, 12f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.15f, 0.58f, 0.34f, 0.72f), furnitureEdgePaint, 12f)
         drawClock(canvas)
         drawNormalizedRect(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furniturePaint, 10f)
-        drawNormalizedRectOutline(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furnitureEdgePaint, 10f)
         drawNormalizedRect(canvas, NormalizedRect(0.84f, 0.38f, 0.92f, 0.63f), wallPaint, 6f)
         if ("entrance_key" !in hiddenHotspots) drawEntranceKey(canvas)
     }
@@ -297,18 +294,14 @@ class GameCanvasView @JvmOverloads constructor(
 
     private fun drawClock(canvas: Canvas) {
         val x = 0.20f * width; val y = 0.24f * height; val radius = minOf(width, height) * 0.045f
-        canvas.drawCircle(x, y, radius, furniturePaint)
-        canvas.drawCircle(x, y, radius, furnitureEdgePaint)
-        canvas.drawLine(x, y, x, y - radius * 0.48f, warmPaint)
-        canvas.drawLine(x, y, x + radius * 0.38f, y + radius * 0.15f, warmPaint)
+        canvas.drawCircle(x, y, radius, furniturePaint); canvas.drawCircle(x, y, radius, furnitureEdgePaint)
+        canvas.drawLine(x, y, x, y - radius * 0.48f, warmPaint); canvas.drawLine(x, y, x + radius * 0.38f, y + radius * 0.15f, warmPaint)
     }
 
     private fun drawLivingRoom(canvas: Canvas) {
         drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
         drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
-        coldPaint.alpha = 55
-        drawNormalizedRect(canvas, NormalizedRect(0.29f, 0.27f, 0.70f, 0.72f), coldPaint, 28f)
-        coldPaint.alpha = 255
+        coldPaint.alpha = 55; drawNormalizedRect(canvas, NormalizedRect(0.29f, 0.27f, 0.70f, 0.72f), coldPaint, 28f); coldPaint.alpha = 255
         drawNormalizedRect(canvas, NormalizedRect(0.37f, 0.36f, 0.63f, 0.61f), furniturePaint, 18f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.37f, 0.36f, 0.63f, 0.61f), furnitureEdgePaint, 18f)
         drawNormalizedRect(canvas, NormalizedRect(0.72f, 0.58f, 0.86f, 0.70f), furnitureDarkPaint, 10f)
@@ -318,29 +311,22 @@ class GameCanvasView @JvmOverloads constructor(
         drawFamilyPicture(canvas)
         if ("living_birthday_card" !in hiddenHotspots) {
             val x = 0.79f * width; val y = 0.55f * height
-            rect.set(x - 18f, y - 11f, x + 18f, y + 11f)
-            canvas.drawRoundRect(rect, 4f, 4f, warmPaint)
+            rect.set(x - 18f, y - 11f, x + 18f, y + 11f); canvas.drawRoundRect(rect, 4f, 4f, warmPaint)
         }
     }
 
     private fun drawFamilyPicture(canvas: Canvas) {
         val centerX = 0.75f * width; val centerY = 0.27f * height
         val tilted = roomStateManager.hasPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_PICTURE_TILTED)
-        val extraPerson = roomStateManager.hasPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_EXTRA_PERSON)
-        canvas.save()
-        if (tilted) canvas.rotate(-7f, centerX, centerY)
+        val extra = roomStateManager.hasPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_EXTRA_PERSON)
+        canvas.save(); if (tilted) canvas.rotate(-7f, centerX, centerY)
         drawNormalizedRect(canvas, NormalizedRect(0.69f, 0.18f, 0.81f, 0.36f), coldPaint, 5f)
         drawNormalizedRect(canvas, NormalizedRect(0.704f, 0.20f, 0.796f, 0.34f), wallPaint, 3f)
-        val count = if (extraPerson) 5 else 4
-        val startX = centerX - (count - 1) * 11f
+        val count = if (extra) 5 else 4; val startX = centerX - (count - 1) * 11f
         repeat(count) { index ->
-            val x = startX + index * 22f
-            val paint = if (extraPerson && index == count - 1) dangerPaint else playerBodyPaint
-            paint.alpha = if (extraPerson && index == count - 1) 130 else 175
-            canvas.drawCircle(x, centerY - 8f, 5f, paint)
-            rect.set(x - 5f, centerY - 2f, x + 5f, centerY + 14f)
-            canvas.drawRoundRect(rect, 5f, 5f, paint)
-            paint.alpha = 255
+            val x = startX + index * 22f; val paint = if (extra && index == count - 1) dangerPaint else playerBodyPaint
+            paint.alpha = if (extra && index == count - 1) 130 else 175
+            canvas.drawCircle(x, centerY - 8f, 5f, paint); rect.set(x - 5f, centerY - 2f, x + 5f, centerY + 14f); canvas.drawRoundRect(rect, 5f, 5f, paint); paint.alpha = 255
         }
         canvas.restore()
     }
@@ -353,56 +339,71 @@ class GameCanvasView @JvmOverloads constructor(
         drawNormalizedRect(canvas, NormalizedRect(0.43f, 0.43f, 0.62f, 0.68f), furniturePaint, 14f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.43f, 0.43f, 0.62f, 0.68f), furnitureEdgePaint, 14f)
         drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.39f, 0.15f, 0.63f), wallPaint, 6f)
-
-        coldPaint.alpha = 90
-        canvas.drawCircle(0.80f * width, 0.24f * height, minOf(width, height) * 0.035f, coldPaint)
-        coldPaint.alpha = 255
-
+        drawNormalizedRect(canvas, NormalizedRect(0.85f, 0.39f, 0.92f, 0.64f), wallPaint, 6f)
         if ("kitchen_chipped_cup" !in hiddenHotspots) {
             val x = 0.72f * width; val y = 0.57f * height; val u = minOf(width, height).toFloat()
-            rect.set(x - u * 0.018f, y - u * 0.020f, x + u * 0.018f, y + u * 0.020f)
-            canvas.drawRoundRect(rect, 5f, 5f, warmPaint)
-            canvas.drawCircle(x + u * 0.021f, y, u * 0.010f, furnitureEdgePaint)
+            rect.set(x - u * 0.018f, y - u * 0.020f, x + u * 0.018f, y + u * 0.020f); canvas.drawRoundRect(rect, 5f, 5f, warmPaint)
         }
-
-        val jarMoved = roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)
-        val jar = if (jarMoved) NormalizedPoint(0.30f, 0.72f) else NormalizedPoint(0.57f, 0.73f)
-        val jarX = jar.x * width; val jarY = jar.y * height; val u = minOf(width, height).toFloat()
-        rect.set(jarX - u * 0.015f, jarY - u * 0.026f, jarX + u * 0.015f, jarY + u * 0.026f)
-        canvas.drawRoundRect(rect, 4f, 4f, coldPaint)
-
+        val moved = roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)
+        val jar = if (moved) NormalizedPoint(0.30f, 0.72f) else NormalizedPoint(0.57f, 0.73f)
+        val jx = jar.x * width; val jy = jar.y * height; val u = minOf(width, height).toFloat()
+        rect.set(jx - u * 0.015f, jy - u * 0.026f, jx + u * 0.015f, jy + u * 0.026f); canvas.drawRoundRect(rect, 4f, 4f, coldPaint)
         if (roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_OBJECT_FALLEN)) {
-            dangerPaint.alpha = 125
-            rect.set(0.68f * width, 0.70f * height, 0.75f * width, 0.715f * height)
-            canvas.drawOval(rect, dangerPaint)
-            dangerPaint.alpha = 255
+            dangerPaint.alpha = 125; rect.set(0.68f * width, 0.70f * height, 0.75f * width, 0.715f * height); canvas.drawOval(rect, dangerPaint); dangerPaint.alpha = 255
         }
     }
 
+    private fun drawBedroom(canvas: Canvas) {
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
+        coldPaint.alpha = 70; drawNormalizedRect(canvas, NormalizedRect(0.78f, 0.17f, 0.88f, 0.34f), coldPaint, 4f); coldPaint.alpha = 255
+        drawNormalizedRect(canvas, NormalizedRect(0.48f, 0.34f, 0.76f, 0.69f), furniturePaint, 18f)
+        drawNormalizedRect(canvas, NormalizedRect(0.51f, 0.37f, 0.73f, 0.47f), playerBodyPaint, 12f)
+        playerBodyPaint.alpha = 255
+        drawNormalizedRect(canvas, NormalizedRect(0.16f, 0.17f, 0.31f, 0.31f), furnitureDarkPaint, 8f)
+        drawNormalizedRect(canvas, NormalizedRect(0.18f, 0.66f, 0.31f, 0.79f), furnitureDarkPaint, 10f)
+        val shifted = roomStateManager.hasPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_DOOR_SHIFTED)
+        val door = if (shifted) NormalizedRect(0.10f, 0.36f, 0.17f, 0.64f) else NormalizedRect(0.08f, 0.39f, 0.15f, 0.63f)
+        drawNormalizedRect(canvas, door, wallPaint, 6f)
+        val changed = roomStateManager.hasPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MESSAGE_CHANGED)
+        val notePaint = if (changed) dangerPaint else warmPaint
+        notePaint.alpha = if (changed) 155 else 220
+        drawNormalizedRect(canvas, NormalizedRect(0.68f, 0.19f, 0.76f, 0.29f), notePaint, 3f)
+        notePaint.alpha = 255
+        if ("bedroom_letter_fragment" !in hiddenHotspots) {
+            warmPaint.alpha = 180; drawNormalizedRect(canvas, NormalizedRect(0.27f, 0.55f, 0.33f, 0.61f), warmPaint, 2f); warmPaint.alpha = 255
+        }
+    }
+
+    private fun drawBedroomShadow(canvas: Canvas) {
+        dangerPaint.alpha = (70 + (shadowSeconds / 1.15f) * 35f).toInt().coerceIn(40, 105)
+        shadowPath.reset()
+        shadowPath.moveTo(width * 0.92f, height * 0.22f)
+        shadowPath.lineTo(width * 0.99f, height * 0.42f)
+        shadowPath.lineTo(width * 0.93f, height * 0.73f)
+        shadowPath.lineTo(width * 0.88f, height * 0.44f)
+        shadowPath.close()
+        canvas.drawPath(shadowPath, dangerPaint)
+        dangerPaint.alpha = 255
+    }
+
     private fun drawHud(canvas: Canvas) {
-        val unit = minOf(width, height).toFloat()
-        textPaint.textSize = unit * 0.036f
-        dimTextPaint.textSize = unit * 0.028f
+        val unit = minOf(width, height).toFloat(); textPaint.textSize = unit * 0.036f; dimTextPaint.textSize = unit * 0.028f
         canvas.drawText(room.name, width * 0.5f, height * 0.075f, dimTextPaint)
         message?.let { canvas.drawText(it, width * 0.5f, height * 0.93f, textPaint) }
         if (message == null) prompt?.let { canvas.drawText(it, width * 0.5f, height * 0.90f, dimTextPaint) }
     }
 
     private fun drawNormalizedRect(canvas: Canvas, area: NormalizedRect, paint: Paint, radius: Float) {
-        rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height)
-        canvas.drawRoundRect(rect, radius, radius, paint)
+        rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height); canvas.drawRoundRect(rect, radius, radius, paint)
     }
 
     private fun drawNormalizedRectOutline(canvas: Canvas, area: NormalizedRect, paint: Paint, radius: Float) {
-        rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height)
-        canvas.drawRoundRect(rect, radius, radius, paint)
+        rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height); canvas.drawRoundRect(rect, radius, radius, paint)
     }
 
     private fun drawPlayer(canvas: Canvas) {
-        val x = player.position.x * width; val y = player.position.y * height; val unit = minOf(width, height).toFloat()
-        val bodyWidth = unit * 0.035f; val bodyHeight = unit * 0.07f
-        rect.set(x - bodyWidth, y - bodyHeight * 0.2f, x + bodyWidth, y + bodyHeight)
-        canvas.drawRoundRect(rect, bodyWidth, bodyWidth, playerBodyPaint)
-        canvas.drawCircle(x, y - bodyHeight * 0.48f, bodyWidth * 0.78f, playerHeadPaint)
+        val x = player.position.x * width; val y = player.position.y * height; val unit = minOf(width, height).toFloat(); val bw = unit * 0.035f; val bh = unit * 0.07f
+        rect.set(x - bw, y - bh * 0.2f, x + bw, y + bh); canvas.drawRoundRect(rect, bw, bw, playerBodyPaint); canvas.drawCircle(x, y - bh * 0.48f, bw * 0.78f, playerHeadPaint)
     }
 }

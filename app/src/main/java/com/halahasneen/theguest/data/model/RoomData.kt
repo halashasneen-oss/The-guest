@@ -3,14 +3,11 @@ package com.halahasneen.theguest.data.model
 enum class RoomId {
     ENTRANCE,
     LIVING_ROOM,
-    KITCHEN
+    KITCHEN,
+    BEDROOM
 }
 
-enum class HotspotType {
-    INSPECT,
-    COLLECT,
-    DOOR
-}
+enum class HotspotType { INSPECT, COLLECT, DOOR }
 
 data class Hotspot(
     val id: String,

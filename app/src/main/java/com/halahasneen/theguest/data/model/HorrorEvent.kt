@@ -1,11 +1,6 @@
 package com.halahasneen.theguest.data.model
 
-enum class HorrorEventCategory {
-    SUBTLE,
-    AUDIO,
-    VISUAL,
-    STRONG
-}
+enum class HorrorEventCategory { SUBTLE, AUDIO, VISUAL, STRONG }
 
 enum class HorrorAction {
     LIVING_PICTURE_TILT,
@@ -13,7 +8,11 @@ enum class HorrorAction {
     LIVING_LIGHT_DIM,
     KITCHEN_FOOTSTEPS,
     KITCHEN_OBJECT_DROP,
-    KITCHEN_ITEM_MOVE
+    KITCHEN_ITEM_MOVE,
+    BEDROOM_SHADOW,
+    BEDROOM_MESSAGE_CHANGE,
+    BEDROOM_DOOR_MOVE,
+    BEDROOM_WHISPER
 }
 
 data class HorrorEvent(

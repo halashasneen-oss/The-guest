@@ -18,7 +18,6 @@ class GameActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_game)
-
         audioManager = AudioManager(applicationContext)
         gameCanvas = findViewById(R.id.gameCanvas)
         findViewById<JoystickView>(R.id.joystick).onDirectionChanged = gameCanvas::setInputDirection
@@ -26,6 +25,7 @@ class GameActivity : Activity() {
         gameCanvas.onSpatialEffectRequested = audioManager::playKnock
         gameCanvas.onFootstepsRequested = audioManager::playFootsteps
         gameCanvas.onDropRequested = audioManager::playDrop
+        gameCanvas.onWhisperRequested = audioManager::playWhisper
         gameCanvas.onTensionStageChanged = audioManager::setTensionStage
         enterImmersiveMode()
     }
@@ -38,8 +38,7 @@ class GameActivity : Activity() {
                 controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         }
     }
 

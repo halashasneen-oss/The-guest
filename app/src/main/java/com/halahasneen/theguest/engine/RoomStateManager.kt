@@ -24,5 +24,8 @@ class RoomStateManager {
         const val KITCHEN_OBJECT_FALLEN = "kitchen_object_fallen"
         const val KITCHEN_ITEM_MOVED = "kitchen_item_moved"
         const val KITCHEN_MEMORY_TAKEN = "kitchen_memory_taken"
+        const val BEDROOM_MESSAGE_CHANGED = "bedroom_message_changed"
+        const val BEDROOM_DOOR_SHIFTED = "bedroom_door_shifted"
+        const val BEDROOM_MEMORY_TAKEN = "bedroom_memory_taken"
     }
 }
