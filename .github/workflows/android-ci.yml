@@ -16,13 +16,13 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
-      - name: Test and build debug + release bundle
-        run: gradle testDebugUnitTest assembleDebug bundleRelease --stacktrace
-      - name: Enforce artifact size budget
+          gradle-version: '8.13'
+      - name: Test, lint, and build debug + release bundle
+        run: gradle testDebugUnitTest lintDebug lintRelease assembleDebug bundleRelease --stacktrace
+      - name: Verify Android 16 target and artifact size budget
         shell: bash
         run: |
           apk="app/build/outputs/apk/debug/app-debug.apk"
@@ -31,6 +31,8 @@ jobs:
           test -f "$apk" && test -f "$aab"
           test "$(stat -c%s "$apk")" -lt "$max"
           test "$(stat -c%s "$aab")" -lt "$max"
+          target_sdk="$(apkanalyzer manifest target-sdk "$apk")"
+          test "$target_sdk" = "36"
       - uses: actions/upload-artifact@v4
         if: success()
         with:
