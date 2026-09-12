@@ -7,18 +7,23 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import com.halahasneen.theguest.R
+import com.halahasneen.theguest.engine.AudioManager
 import com.halahasneen.theguest.ui.components.InteractionButtonView
 import com.halahasneen.theguest.ui.components.JoystickView
 
 class GameActivity : Activity() {
     private lateinit var gameCanvas: GameCanvasView
+    private lateinit var audioManager: AudioManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_game)
+
+        audioManager = AudioManager(applicationContext)
         gameCanvas = findViewById(R.id.gameCanvas)
         findViewById<JoystickView>(R.id.joystick).onDirectionChanged = gameCanvas::setInputDirection
         findViewById<InteractionButtonView>(R.id.interactionButton).onInteraction = gameCanvas::interact
+        gameCanvas.onSpatialEffectRequested = audioManager::playKnock
         enterImmersiveMode()
     }
 
@@ -45,10 +50,17 @@ class GameActivity : Activity() {
     override fun onResume() {
         super.onResume()
         gameCanvas.resumeGame()
+        audioManager.resumeAmbient()
     }
 
     override fun onPause() {
         gameCanvas.pauseGame()
+        audioManager.pauseAmbient()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        audioManager.release()
+        super.onDestroy()
     }
 }

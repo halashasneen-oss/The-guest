@@ -25,6 +25,8 @@ class GameCanvasView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    var onSpatialEffectRequested: ((source: NormalizedPoint, listener: NormalizedPoint) -> Unit)? = null
+
     private val player = PlayerState(position = NormalizedPoint(0.18f, 0.50f))
     private var inputX = 0f
     private var inputY = 0f
@@ -95,6 +97,7 @@ class GameCanvasView @JvmOverloads constructor(
                 showMessage(hotspot.message, 4f)
             }
             HotspotType.DOOR -> hotspot.targetRoom?.let { target ->
+                onSpatialEffectRequested?.invoke(hotspot.position, player.position)
                 changeRoom(target)
             }
         }
@@ -155,27 +158,22 @@ class GameCanvasView @JvmOverloads constructor(
         drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
         drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
 
-        // Narrow runner rug.
         coldPaint.alpha = 90
         drawNormalizedRect(canvas, NormalizedRect(0.36f, 0.38f, 0.70f, 0.62f), coldPaint, 16f)
         coldPaint.alpha = 255
 
-        // Console table beneath the old clock.
         drawNormalizedRect(canvas, NormalizedRect(0.15f, 0.58f, 0.34f, 0.72f), furniturePaint, 12f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.15f, 0.58f, 0.34f, 0.72f), furnitureEdgePaint, 12f)
         drawClock(canvas)
 
-        // Tall cabinet.
         drawNormalizedRect(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furniturePaint, 10f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.67f, 0.15f, 0.82f, 0.29f), furnitureEdgePaint, 10f)
 
-        // Door to the living room.
         drawNormalizedRect(canvas, NormalizedRect(0.84f, 0.38f, 0.92f, 0.63f), wallPaint, 6f)
         warmPaint.alpha = 115
         canvas.drawCircle(0.855f * width, 0.505f * height, minOf(width, height) * 0.009f, warmPaint)
         warmPaint.alpha = 255
 
-        // First memory: a small brass key on the console.
         if ("entrance_key" !in hiddenHotspots) {
             val x = 0.25f * width
             val y = 0.55f * height
@@ -198,8 +196,6 @@ class GameCanvasView @JvmOverloads constructor(
         drawNormalizedRect(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furniturePaint, 18f)
         drawNormalizedRectOutline(canvas, NormalizedRect(0.39f, 0.34f, 0.61f, 0.62f), furnitureEdgePaint, 18f)
         drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.38f, 0.15f, 0.63f), wallPaint, 6f)
-
-        // A framed family picture hints at the next milestone without triggering its event yet.
         drawNormalizedRect(canvas, NormalizedRect(0.70f, 0.20f, 0.80f, 0.34f), coldPaint, 4f)
         drawNormalizedRect(canvas, NormalizedRect(0.715f, 0.22f, 0.785f, 0.32f), wallPaint, 2f)
     }
@@ -216,22 +212,12 @@ class GameCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun drawNormalizedRect(
-        canvas: Canvas,
-        area: NormalizedRect,
-        paint: Paint,
-        radius: Float
-    ) {
+    private fun drawNormalizedRect(canvas: Canvas, area: NormalizedRect, paint: Paint, radius: Float) {
         rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height)
         canvas.drawRoundRect(rect, radius, radius, paint)
     }
 
-    private fun drawNormalizedRectOutline(
-        canvas: Canvas,
-        area: NormalizedRect,
-        paint: Paint,
-        radius: Float
-    ) {
+    private fun drawNormalizedRectOutline(canvas: Canvas, area: NormalizedRect, paint: Paint, radius: Float) {
         rect.set(area.left * width, area.top * height, area.right * width, area.bottom * height)
         canvas.drawRoundRect(rect, radius, radius, paint)
     }
