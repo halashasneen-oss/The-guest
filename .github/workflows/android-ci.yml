@@ -2,6 +2,7 @@ name: Android CI
 
 on:
   push:
+    branches: ['**']
   pull_request:
 
 jobs:
@@ -19,10 +20,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Test and build
-        run: gradle testDebugUnitTest assembleDebug --stacktrace
+      - name: Test and build debug + release bundle
+        run: gradle testDebugUnitTest assembleDebug bundleRelease --stacktrace
+      - name: Enforce artifact size budget
+        shell: bash
+        run: |
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          aab="app/build/outputs/bundle/release/app-release.aab"
+          max=$((40 * 1024 * 1024))
+          test -f "$apk" && test -f "$aab"
+          test "$(stat -c%s "$apk")" -lt "$max"
+          test "$(stat -c%s "$aab")" -lt "$max"
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: the-guest-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: the-guest-release-aab-unsigned-ci
+          path: app/build/outputs/bundle/release/app-release.aab
