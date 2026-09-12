@@ -9,11 +9,14 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import com.halahasneen.theguest.data.event.HorrorEventCatalog
+import com.halahasneen.theguest.data.model.EndingPath
+import com.halahasneen.theguest.data.model.FinalChoice
 import com.halahasneen.theguest.data.model.HorrorAction
 import com.halahasneen.theguest.data.model.HorrorContext
 import com.halahasneen.theguest.data.model.HorrorEvent
 import com.halahasneen.theguest.data.model.Hotspot
 import com.halahasneen.theguest.data.model.HotspotType
+import com.halahasneen.theguest.data.model.NarrativeState
 import com.halahasneen.theguest.data.model.NormalizedPoint
 import com.halahasneen.theguest.data.model.NormalizedRect
 import com.halahasneen.theguest.data.model.PlayerState
@@ -21,6 +24,7 @@ import com.halahasneen.theguest.data.model.RoomData
 import com.halahasneen.theguest.data.model.RoomId
 import com.halahasneen.theguest.data.room.RoomCatalog
 import com.halahasneen.theguest.engine.CollisionSystem
+import com.halahasneen.theguest.engine.EndingResolver
 import com.halahasneen.theguest.engine.GameLoop
 import com.halahasneen.theguest.engine.HorrorDirector
 import com.halahasneen.theguest.engine.InteractionSystem
@@ -47,6 +51,7 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
     private val tensionSystem = TensionSystem()
     private val horrorDirector = HorrorDirector()
     private val roomStateManager = RoomStateManager()
+    private val narrativeState = NarrativeState()
     private var lastTensionStage = tensionSystem.stage
 
     private val roomVisitCounts = mutableMapOf(RoomId.ENTRANCE to 1)
@@ -54,9 +59,11 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
     private val hiddenHotspots = mutableSetOf<String>()
     private var temporaryBlackoutSeconds = 0f
     private var shadowSeconds = 0f
+    private var basementPresenceSeconds = 0f
     private var prompt: String? = null
     private var message: String? = "عدت إلى البيت بعد غياب طويل."
     private var messageSeconds = 4f
+    private var endingPath: EndingPath? = null
 
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(13, 11, 20) }
     private val floorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 22, 38) }
@@ -71,6 +78,7 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
     private val playerHeadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 176, 75) }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(234, 234, 234); textAlign = Paint.Align.CENTER }
     private val dimTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(234, 234, 234); alpha = 165; textAlign = Paint.Align.CENTER }
+    private val endingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(228, 8, 7, 12) }
     private val rect = RectF()
     private val shadowPath = Path()
 
@@ -82,21 +90,27 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
     }
 
     fun interact() {
+        if (endingPath != null) return
         val hotspot = interactionSystem.nearest(player.position, currentHotspots(), hiddenHotspots)
         if (hotspot == null) { showMessage("لا شيء يلفت الانتباه هنا.", 1.4f); return }
         when (hotspot.type) {
             HotspotType.INSPECT -> inspect(hotspot)
             HotspotType.COLLECT -> collect(hotspot)
             HotspotType.DOOR -> hotspot.targetRoom?.let { target ->
+                if (room.id == RoomId.BASEMENT && target == RoomId.BEDROOM && RoomCatalog.basementMemory.id in collectedMemories && narrativeState.finalChoice == null) {
+                    narrativeState.recordAvoidance(1)
+                }
                 onSpatialEffectRequested?.invoke(hotspot.position, player.position)
                 when (target) {
                     RoomId.LIVING_ROOM -> tensionSystem.addStimulus(3f)
                     RoomId.KITCHEN -> tensionSystem.addStimulus(4f)
                     RoomId.BEDROOM -> tensionSystem.addStimulus(5f)
+                    RoomId.BASEMENT -> tensionSystem.addStimulus(8f)
                     RoomId.ENTRANCE -> Unit
                 }
                 changeRoom(target)
             }
+            HotspotType.CHOICE -> handleChoice(hotspot)
         }
         notifyTensionStageIfNeeded()
     }
@@ -105,8 +119,18 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
     fun pauseGame() = gameLoop.stop()
 
     private fun currentHotspots(): List<Hotspot> {
-        if (room.id != RoomId.KITCHEN || !roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)) return room.hotspots
-        return room.hotspots.map { if (it.id == "kitchen_loose_jar") it.copy(position = NormalizedPoint(0.30f, 0.72f)) else it }
+        var hotspots = room.hotspots
+        if (room.id == RoomId.KITCHEN && roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)) {
+            hotspots = hotspots.map { if (it.id == "kitchen_loose_jar") it.copy(position = NormalizedPoint(0.30f, 0.72f)) else it }
+        }
+        if (room.id == RoomId.BASEMENT) {
+            val memoryFound = RoomCatalog.basementMemory.id in collectedMemories
+            val choiceMade = roomStateManager.hasPhysical(RoomId.BASEMENT, RoomStateManager.Flags.BASEMENT_CHOICE_MADE)
+            hotspots = hotspots.filter { hotspot ->
+                if (hotspot.type != HotspotType.CHOICE) true else memoryFound && !choiceMade
+            }
+        }
+        return hotspots
     }
 
     private fun inspect(hotspot: Hotspot) {
@@ -114,13 +138,20 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
             "living_family_picture" -> inspectFamilyPicture()
             "kitchen_loose_jar" -> {
                 val moved = roomStateManager.hasPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)
+                if (moved) narrativeState.recordEvidence(1)
                 tensionSystem.addStimulus(if (moved) 2.2f else 0.8f)
                 showMessage(if (moved) "كان المرطبان قرب الطاولة... كيف وصل إلى هنا؟" else hotspot.message, 3.8f)
             }
             "bedroom_note" -> {
                 val changed = roomStateManager.hasPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MESSAGE_CHANGED)
+                if (changed) narrativeState.recordConfrontation(1)
                 tensionSystem.addStimulus(if (changed) 3f else 1f)
                 showMessage(if (changed) "إذا عدت يومًا... أنت تعرف من ينتظرك." else hotspot.message, 4.2f)
+            }
+            "basement_family_box" -> {
+                narrativeState.recordEvidence(2)
+                tensionSystem.addStimulus(3f)
+                showMessage("اسمي مكتوب على الصندوق من الخارج... وتحتَه كلمة: الزائر.", 4.8f)
             }
             else -> { tensionSystem.addStimulus(0.8f); showMessage(hotspot.message, 3.6f) }
         }
@@ -130,9 +161,14 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
         val tilted = roomStateManager.hasPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_PICTURE_TILTED)
         val extraPerson = roomStateManager.hasPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_EXTRA_PERSON)
         when {
-            extraPerson -> { tensionSystem.addStimulus(1.5f); showMessage("خمسة أشخاص. لا أستطيع تذكّر وجه الخامس.", 4f) }
+            extraPerson -> {
+                narrativeState.recordEvidence(1)
+                tensionSystem.addStimulus(1.5f)
+                showMessage("خمسة أشخاص. لا أستطيع تذكّر وجه الخامس.", 4f)
+            }
             tilted -> {
                 roomStateManager.markPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_EXTRA_PERSON)
+                narrativeState.recordConfrontation(1)
                 tensionSystem.addStimulus(6f); temporaryBlackoutSeconds = 0.7f
                 showMessage("كانوا أربعة... من هذا الخامس؟", 4.5f)
             }
@@ -141,8 +177,9 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
     }
 
     private fun collect(hotspot: Hotspot) {
-        hotspot.memoryItemId?.let(collectedMemories::add)
+        val newlyCollected = hotspot.memoryItemId?.let(collectedMemories::add) ?: false
         hiddenHotspots.add(hotspot.id)
+        if (newlyCollected) narrativeState.recordEvidence(if (hotspot.id == "basement_tape") 2 else 1)
         when (hotspot.id) {
             "living_birthday_card" -> {
                 roomStateManager.markPhysical(RoomId.LIVING_ROOM, RoomStateManager.Flags.LIVING_MEMORY_TAKEN)
@@ -156,27 +193,58 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
                 roomStateManager.markPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MEMORY_TAKEN)
                 tensionSystem.addStimulus(7f); showMessage("ذكرى 4/5 — القصاصة تحمل تاريخ الليلة التي غادرتُ فيها البيت.", 4.8f)
             }
+            "basement_tape" -> {
+                roomStateManager.markPhysical(RoomId.BASEMENT, RoomStateManager.Flags.BASEMENT_MEMORY_TAKEN)
+                tensionSystem.addStimulus(10f)
+                temporaryBlackoutSeconds = 1.2f
+                showMessage("ذكرى 5/5 — التسجيل يقول: «إذا عاد... فهو الزائر هذه المرة.»", 5.5f)
+            }
             else -> { tensionSystem.addStimulus(4f); showMessage(hotspot.message, 4f) }
         }
     }
 
+    private fun handleChoice(hotspot: Hotspot) {
+        if (RoomCatalog.basementMemory.id !in collectedMemories) {
+            showMessage("ما زال هناك شيء يجب أن أسمعه أولًا.", 2.5f)
+            return
+        }
+        when (hotspot.id) {
+            "basement_confront" -> {
+                narrativeState.finalChoice = FinalChoice.CONFRONT
+                narrativeState.recordConfrontation(4)
+            }
+            "basement_turn_away" -> {
+                narrativeState.finalChoice = FinalChoice.TURN_AWAY
+                narrativeState.recordAvoidance(4)
+            }
+            else -> return
+        }
+        roomStateManager.markPhysical(RoomId.BASEMENT, RoomStateManager.Flags.BASEMENT_CHOICE_MADE)
+        endingPath = EndingResolver.resolve(narrativeState, collectedMemories.size)
+        tensionSystem.addStimulus(12f)
+        temporaryBlackoutSeconds = 2.8f
+    }
+
     private fun updateGame(deltaSeconds: Float) {
-        val desired = NormalizedPoint(player.position.x + inputX * player.speedPerSecond * deltaSeconds, player.position.y + inputY * player.speedPerSecond * deltaSeconds)
-        player.position = collisionSystem.resolve(player.position, desired, player.radius)
-        prompt = interactionSystem.nearest(player.position, currentHotspots(), hiddenHotspots)?.label
-        val inSafeLight = isNearSafeLight()
-        tensionSystem.update(deltaSeconds, inDarkness = !inSafeLight, inSafeLight = inSafeLight)
-        notifyTensionStageIfNeeded()
+        if (endingPath == null) {
+            val desired = NormalizedPoint(player.position.x + inputX * player.speedPerSecond * deltaSeconds, player.position.y + inputY * player.speedPerSecond * deltaSeconds)
+            player.position = collisionSystem.resolve(player.position, desired, player.radius)
+            prompt = interactionSystem.nearest(player.position, currentHotspots(), hiddenHotspots)?.label
+            val inSafeLight = isNearSafeLight()
+            tensionSystem.update(deltaSeconds, inDarkness = !inSafeLight, inSafeLight = inSafeLight)
+            notifyTensionStageIfNeeded()
+
+            horrorDirector.update(
+                deltaSeconds,
+                HorrorContext(room.id, roomVisitCounts[room.id] ?: 1, collectedMemories.size, tensionSystem.level),
+                HorrorEventCatalog.events,
+                tensionSystem.eventIntensityMultiplier
+            )?.let(::triggerHorrorEvent)
+        }
+
         temporaryBlackoutSeconds = (temporaryBlackoutSeconds - deltaSeconds).coerceAtLeast(0f)
         shadowSeconds = (shadowSeconds - deltaSeconds).coerceAtLeast(0f)
-
-        horrorDirector.update(
-            deltaSeconds,
-            HorrorContext(room.id, roomVisitCounts[room.id] ?: 1, collectedMemories.size, tensionSystem.level),
-            HorrorEventCatalog.events,
-            tensionSystem.eventIntensityMultiplier
-        )?.let(::triggerHorrorEvent)
-
+        basementPresenceSeconds = (basementPresenceSeconds - deltaSeconds).coerceAtLeast(0f)
         if (messageSeconds > 0f) {
             messageSeconds = (messageSeconds - deltaSeconds).coerceAtLeast(0f)
             if (messageSeconds == 0f) message = null
@@ -201,26 +269,34 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
                 roomStateManager.markPhysical(RoomId.KITCHEN, RoomStateManager.Flags.KITCHEN_ITEM_MOVED)
                 tensionSystem.addStimulus(3.5f); showMessage("هناك شيء مختلف في المطبخ...", 2.5f)
             }
-            HorrorAction.BEDROOM_SHADOW -> {
-                shadowSeconds = 1.15f
-                tensionSystem.addStimulus(5f)
-            }
+            HorrorAction.BEDROOM_SHADOW -> { shadowSeconds = 1.15f; tensionSystem.addStimulus(5f) }
             HorrorAction.BEDROOM_MESSAGE_CHANGE -> {
                 roomStateManager.markPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MESSAGE_CHANGED)
-                temporaryBlackoutSeconds = 0.65f
-                tensionSystem.addStimulus(4.5f)
+                temporaryBlackoutSeconds = 0.65f; tensionSystem.addStimulus(4.5f)
                 showMessage("الكلمات على الورقة لم تعد كما كانت.", 3f)
             }
             HorrorAction.BEDROOM_DOOR_MOVE -> {
                 roomStateManager.markPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_DOOR_SHIFTED)
                 onSpatialEffectRequested?.invoke(NormalizedPoint(0.12f, 0.52f), player.position)
-                tensionSystem.addStimulus(5f)
-                showMessage("الباب تحرّك وحده.", 2.7f)
+                tensionSystem.addStimulus(5f); showMessage("الباب تحرّك وحده.", 2.7f)
             }
             HorrorAction.BEDROOM_WHISPER -> {
                 onWhisperRequested?.invoke(NormalizedPoint(0.91f, 0.42f), player.position)
-                tensionSystem.addStimulus(3.5f)
-                showMessage("همس خافت: «ارجع...»", 2.5f)
+                tensionSystem.addStimulus(3.5f); showMessage("همس خافت: «ارجع...»", 2.5f)
+            }
+            HorrorAction.BASEMENT_CHAIN_RATTLE -> {
+                onDropRequested?.invoke(NormalizedPoint(0.82f, 0.24f), player.position)
+                tensionSystem.addStimulus(4f); showMessage("صوت سلسلة تتحرك في الظلام.", 2.4f)
+            }
+            HorrorAction.BASEMENT_BLACKOUT -> {
+                roomStateManager.markPhysical(RoomId.BASEMENT, RoomStateManager.Flags.BASEMENT_BLACKOUT_SEEN)
+                temporaryBlackoutSeconds = 2.8f; tensionSystem.addStimulus(7f)
+                showMessage("انطفأ كل شيء... لكن التنفس لم يتوقف.", 3.2f)
+            }
+            HorrorAction.BASEMENT_PRESENCE -> {
+                roomStateManager.markPhysical(RoomId.BASEMENT, RoomStateManager.Flags.BASEMENT_PRESENCE_SEEN)
+                basementPresenceSeconds = 1.5f; tensionSystem.addStimulus(8f)
+                onWhisperRequested?.invoke(NormalizedPoint(0.86f, 0.44f), player.position)
             }
         }
         notifyTensionStageIfNeeded()
@@ -246,12 +322,14 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
             RoomId.LIVING_ROOM -> NormalizedPoint(0.18f, 0.60f)
             RoomId.KITCHEN -> NormalizedPoint(0.18f, 0.52f)
             RoomId.BEDROOM -> NormalizedPoint(0.18f, 0.52f)
+            RoomId.BASEMENT -> NormalizedPoint(0.18f, 0.50f)
         }
         val entryMessage = when (target) {
             RoomId.ENTRANCE -> "عدت إلى المدخل."
             RoomId.LIVING_ROOM -> "دخلت الصالون. البيت أكثر هدوءًا مما ينبغي."
             RoomId.KITCHEN -> "المطبخ أبرد من بقية البيت."
             RoomId.BEDROOM -> "غرفة النوم ما زالت كما تركتها... تقريبًا."
+            RoomId.BASEMENT -> "نزلت إلى القبو. هنا لا يبدو أنني وحدي."
         }
         showMessage(entryMessage, 3f)
     }
@@ -267,11 +345,14 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
             RoomId.LIVING_ROOM -> drawLivingRoom(canvas)
             RoomId.KITCHEN -> drawKitchen(canvas)
             RoomId.BEDROOM -> drawBedroom(canvas)
+            RoomId.BASEMENT -> drawBasement(canvas)
         }
         if (room.id == RoomId.BEDROOM && shadowSeconds > 0f) drawBedroomShadow(canvas)
+        if (room.id == RoomId.BASEMENT && basementPresenceSeconds > 0f) drawBasementPresence(canvas)
         drawPlayer(canvas)
         lightingSystem.draw(canvas, width, height, player.position.x, player.position.y, tensionSystem.level, (temporaryBlackoutSeconds / 2.8f).coerceIn(0f, 1f))
         drawHud(canvas)
+        endingPath?.let { drawEnding(canvas, it) }
     }
 
     private fun drawEntrance(canvas: Canvas) {
@@ -359,17 +440,15 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
         coldPaint.alpha = 70; drawNormalizedRect(canvas, NormalizedRect(0.78f, 0.17f, 0.88f, 0.34f), coldPaint, 4f); coldPaint.alpha = 255
         drawNormalizedRect(canvas, NormalizedRect(0.48f, 0.34f, 0.76f, 0.69f), furniturePaint, 18f)
         drawNormalizedRect(canvas, NormalizedRect(0.51f, 0.37f, 0.73f, 0.47f), playerBodyPaint, 12f)
-        playerBodyPaint.alpha = 255
         drawNormalizedRect(canvas, NormalizedRect(0.16f, 0.17f, 0.31f, 0.31f), furnitureDarkPaint, 8f)
         drawNormalizedRect(canvas, NormalizedRect(0.18f, 0.66f, 0.31f, 0.79f), furnitureDarkPaint, 10f)
         val shifted = roomStateManager.hasPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_DOOR_SHIFTED)
         val door = if (shifted) NormalizedRect(0.10f, 0.36f, 0.17f, 0.64f) else NormalizedRect(0.08f, 0.39f, 0.15f, 0.63f)
         drawNormalizedRect(canvas, door, wallPaint, 6f)
+        drawNormalizedRect(canvas, NormalizedRect(0.84f, 0.64f, 0.92f, 0.82f), wallPaint, 6f)
         val changed = roomStateManager.hasPhysical(RoomId.BEDROOM, RoomStateManager.Flags.BEDROOM_MESSAGE_CHANGED)
         val notePaint = if (changed) dangerPaint else warmPaint
-        notePaint.alpha = if (changed) 155 else 220
-        drawNormalizedRect(canvas, NormalizedRect(0.68f, 0.19f, 0.76f, 0.29f), notePaint, 3f)
-        notePaint.alpha = 255
+        notePaint.alpha = if (changed) 155 else 220; drawNormalizedRect(canvas, NormalizedRect(0.68f, 0.19f, 0.76f, 0.29f), notePaint, 3f); notePaint.alpha = 255
         if ("bedroom_letter_fragment" !in hiddenHotspots) {
             warmPaint.alpha = 180; drawNormalizedRect(canvas, NormalizedRect(0.27f, 0.55f, 0.33f, 0.61f), warmPaint, 2f); warmPaint.alpha = 255
         }
@@ -377,14 +456,46 @@ class GameCanvasView @JvmOverloads constructor(context: Context, attrs: Attribut
 
     private fun drawBedroomShadow(canvas: Canvas) {
         dangerPaint.alpha = (70 + (shadowSeconds / 1.15f) * 35f).toInt().coerceIn(40, 105)
-        shadowPath.reset()
-        shadowPath.moveTo(width * 0.92f, height * 0.22f)
-        shadowPath.lineTo(width * 0.99f, height * 0.42f)
-        shadowPath.lineTo(width * 0.93f, height * 0.73f)
-        shadowPath.lineTo(width * 0.88f, height * 0.44f)
-        shadowPath.close()
-        canvas.drawPath(shadowPath, dangerPaint)
-        dangerPaint.alpha = 255
+        shadowPath.reset(); shadowPath.moveTo(width * 0.92f, height * 0.22f); shadowPath.lineTo(width * 0.99f, height * 0.42f); shadowPath.lineTo(width * 0.93f, height * 0.73f); shadowPath.lineTo(width * 0.88f, height * 0.44f); shadowPath.close()
+        canvas.drawPath(shadowPath, dangerPaint); dangerPaint.alpha = 255
+    }
+
+    private fun drawBasement(canvas: Canvas) {
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.10f, 0.93f, 0.15f), wallPaint, 0f)
+        drawNormalizedRect(canvas, NormalizedRect(0.07f, 0.85f, 0.93f, 0.90f), wallPaint, 0f)
+        dangerPaint.alpha = 45; drawNormalizedRect(canvas, NormalizedRect(0.30f, 0.24f, 0.77f, 0.78f), dangerPaint, 32f); dangerPaint.alpha = 255
+        drawNormalizedRect(canvas, NormalizedRect(0.15f, 0.16f, 0.35f, 0.31f), furnitureDarkPaint, 8f)
+        drawNormalizedRect(canvas, NormalizedRect(0.42f, 0.39f, 0.60f, 0.64f), furniturePaint, 12f)
+        drawNormalizedRectOutline(canvas, NormalizedRect(0.42f, 0.39f, 0.60f, 0.64f), furnitureEdgePaint, 12f)
+        drawNormalizedRect(canvas, NormalizedRect(0.70f, 0.18f, 0.86f, 0.33f), furnitureDarkPaint, 8f)
+        drawNormalizedRect(canvas, NormalizedRect(0.08f, 0.39f, 0.15f, 0.63f), wallPaint, 6f)
+        if ("basement_tape" !in hiddenHotspots) {
+            warmPaint.alpha = 190; drawNormalizedRect(canvas, NormalizedRect(0.49f, 0.67f, 0.57f, 0.73f), warmPaint, 4f); warmPaint.alpha = 255
+        }
+        if (RoomCatalog.basementMemory.id in collectedMemories && narrativeState.finalChoice == null) {
+            dangerPaint.alpha = 110; canvas.drawCircle(0.78f * width, 0.52f * height, minOf(width, height) * 0.035f, dangerPaint)
+            coldPaint.alpha = 110; canvas.drawCircle(0.22f * width, 0.72f * height, minOf(width, height) * 0.035f, coldPaint)
+            dangerPaint.alpha = 255; coldPaint.alpha = 255
+        }
+    }
+
+    private fun drawBasementPresence(canvas: Canvas) {
+        dangerPaint.alpha = (65 + basementPresenceSeconds * 22f).toInt().coerceIn(45, 100)
+        shadowPath.reset(); shadowPath.moveTo(width * 0.81f, height * 0.20f); shadowPath.lineTo(width * 0.91f, height * 0.45f); shadowPath.lineTo(width * 0.83f, height * 0.80f); shadowPath.lineTo(width * 0.75f, height * 0.43f); shadowPath.close()
+        canvas.drawPath(shadowPath, dangerPaint); dangerPaint.alpha = 255
+    }
+
+    private fun drawEnding(canvas: Canvas, ending: EndingPath) {
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), endingPaint)
+        val unit = minOf(width, height).toFloat()
+        textPaint.textSize = unit * 0.065f
+        dimTextPaint.textSize = unit * 0.032f
+        val title = if (ending == EndingPath.TRUTH) "النهاية: الحقيقة" else "النهاية: الإنكار"
+        val line1 = if (ending == EndingPath.TRUTH) "لم يكن البيت ينتظر زائرًا جديدًا." else "غادرت المنزل قبل أن تعرف من كان ينتظر من."
+        val line2 = if (ending == EndingPath.TRUTH) "أنت من عاد إلى مكان لم يعد يعتبرك من أهله." else "أغلقت الباب خلفك... وبقي السؤال في الداخل."
+        canvas.drawText(title, width * 0.5f, height * 0.40f, textPaint)
+        canvas.drawText(line1, width * 0.5f, height * 0.52f, dimTextPaint)
+        canvas.drawText(line2, width * 0.5f, height * 0.59f, dimTextPaint)
     }
 
     private fun drawHud(canvas: Canvas) {
