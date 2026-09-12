@@ -16,20 +16,35 @@ class RoomStateManager {
     fun markPerceived(roomId: RoomId, flag: String) { state(roomId).perceivedFlags.add(flag) }
     fun hasPerceived(roomId: RoomId, flag: String): Boolean = flag in state(roomId).perceivedFlags
     fun clearPerceived(roomId: RoomId) { state(roomId).perceivedFlags.clear() }
+    fun physicalFlags(roomId: RoomId): Set<String> = state(roomId).physicalFlags.toSet()
+    fun perceivedFlags(roomId: RoomId): Set<String> = state(roomId).perceivedFlags.toSet()
+
+    fun restoreRoom(roomId: RoomId, physicalFlags: Set<String>, perceivedFlags: Set<String>) {
+        states[roomId] = RoomRuntimeState(physicalFlags.toMutableSet(), perceivedFlags.toMutableSet())
+    }
+
+    fun reset() {
+        states.clear()
+    }
 
     object Flags {
         const val LIVING_PICTURE_TILTED = "living_picture_tilted"
         const val LIVING_EXTRA_PERSON = "living_extra_person"
         const val LIVING_MEMORY_TAKEN = "living_memory_taken"
+        const val LIVING_EVIDENCE_RECORDED = "living_evidence_recorded"
         const val KITCHEN_OBJECT_FALLEN = "kitchen_object_fallen"
         const val KITCHEN_ITEM_MOVED = "kitchen_item_moved"
         const val KITCHEN_MEMORY_TAKEN = "kitchen_memory_taken"
+        const val KITCHEN_EVIDENCE_RECORDED = "kitchen_evidence_recorded"
         const val BEDROOM_MESSAGE_CHANGED = "bedroom_message_changed"
         const val BEDROOM_DOOR_SHIFTED = "bedroom_door_shifted"
         const val BEDROOM_MEMORY_TAKEN = "bedroom_memory_taken"
+        const val BEDROOM_EVIDENCE_RECORDED = "bedroom_evidence_recorded"
         const val BASEMENT_MEMORY_TAKEN = "basement_memory_taken"
         const val BASEMENT_BLACKOUT_SEEN = "basement_blackout_seen"
         const val BASEMENT_PRESENCE_SEEN = "basement_presence_seen"
         const val BASEMENT_CHOICE_MADE = "basement_choice_made"
+        const val BASEMENT_EVIDENCE_RECORDED = "basement_evidence_recorded"
+        const val BASEMENT_AVOIDANCE_RECORDED = "basement_avoidance_recorded"
     }
 }

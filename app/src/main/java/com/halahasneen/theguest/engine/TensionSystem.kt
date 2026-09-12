@@ -44,4 +44,8 @@ class TensionSystem(initialLevel: Float = 0f) {
     fun calm(amount: Float) {
         level = (level - amount.coerceAtLeast(0f)).coerceIn(0f, 100f)
     }
+
+    fun restore(value: Float) {
+        level = value.coerceIn(0f, 100f)
+    }
 }

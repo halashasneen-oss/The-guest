@@ -51,6 +51,18 @@ class HorrorDirector(
                 !(lastCategory == HorrorEventCategory.STRONG && event.category == HorrorEventCategory.STRONG)
         }
 
+    fun triggeredOneShots(): Set<String> = triggeredOneShots.toSet()
+
+    fun restoreTriggeredOneShots(ids: Set<String>) {
+        triggeredOneShots.clear()
+        triggeredOneShots.addAll(ids)
+        eventCooldowns.clear()
+        lastEventId = null
+        lastCategory = null
+        evaluationAccumulator = 0f
+        globalCooldown = 0f
+    }
+
     private fun weightedSelect(events: List<HorrorEvent>, intensityMultiplier: Float): HorrorEvent? {
         if (events.isEmpty()) return null
         val weights = events.map { event ->
