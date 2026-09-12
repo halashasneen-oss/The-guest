@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">الزائر – The Guest</string>
+    <string name="menu_subtitle">رعب نفسي أوفلاين</string>
+    <string name="continue_game">متابعة</string>
+    <string name="new_game">لعبة جديدة</string>
+    <string name="settings">الإعدادات</string>
+    <string name="credits">حول اللعبة</string>
+    <string name="pause">إيقاف مؤقت</string>
+    <string name="resume">متابعة اللعب</string>
+    <string name="main_menu">القائمة الرئيسية</string>
+    <string name="master_volume">مستوى الصوت العام</string>
+    <string name="effects_volume">المؤثرات الصوتية</string>
+    <string name="ambient_volume">الصوت المحيطي</string>
+    <string name="vibration">الاهتزاز</string>
+    <string name="subtitles">ترجمة الإشارات الصوتية المهمة</string>
+    <string name="back">رجوع</string>
+    <string name="credits_body">الزائر – The Guest\n\nلعبة رعب نفسي قصيرة تعتمد على التوتر والصمت وتغيّر البيئة والذاكرة غير الموثوقة.\n\nتم تصميم اللعبة لتعمل دون اتصال بالإنترنت ودون صلاحيات حساسة.</string>
+    <string name="movement_joystick">عصا الحركة</string>
+    <string name="interact">تفاعل</string>
+    <string name="pause_game">إيقاف اللعبة مؤقتًا</string>
+</resources>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/horror_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="520dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="28dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="18dp"
+            android:text="@string/settings"
+            android:textColor="@color/ui_text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/master_volume" android:textColor="@color/ui_text" />
+        <SeekBar android:id="@+id/masterVolume" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="@string/effects_volume" android:textColor="@color/ui_text" />
+        <SeekBar android:id="@+id/effectsVolume" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="@string/ambient_volume" android:textColor="@color/ui_text" />
+        <SeekBar android:id="@+id/ambientVolume" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+        <Switch
+            android:id="@+id/vibrationSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/vibration"
+            android:textColor="@color/ui_text" />
+
+        <Switch
+            android:id="@+id/subtitlesSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/subtitles"
+            android:textColor="@color/ui_text" />
+
+        <Button
+            android:id="@+id/settingsBackButton"
+            android:layout_width="220dp"
+            android:layout_height="52dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="22dp"
+            android:background="@drawable/menu_button"
+            android:text="@string/back"
+            android:textColor="@color/ui_text" />
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/horror_bg">
+
+    <View
+        android:layout_width="220dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="#111A1626" />
+
+    <LinearLayout
+        android:layout_width="360dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/ui_text"
+            android:textSize="34sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="@string/menu_subtitle"
+            android:textColor="#AAEAEAEA"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/continueButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/menu_button"
+            android:text="@string/continue_game"
+            android:textColor="@color/ui_text" />
+
+        <Button
+            android:id="@+id/newGameButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/menu_button"
+            android:text="@string/new_game"
+            android:textColor="@color/ui_text" />
+
+        <Button
+            android:id="@+id/settingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/menu_button"
+            android:text="@string/settings"
+            android:textColor="@color/ui_text" />
+
+        <Button
+            android:id="@+id/creditsButton"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:background="@drawable/menu_button"
+            android:text="@string/credits"
+            android:textColor="@color/ui_text" />
+    </LinearLayout>
+</FrameLayout>
